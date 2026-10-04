@@ -36,4 +36,14 @@ export function sameOrigin(h: Headers): boolean {
   }
 }
 
+/**
+ * CSRF check for the admin area (stricter than sameOrigin, which the public contact form uses).
+ * The request must carry an Origin that matches this host, or, when the browser sends no Origin, Sec-Fetch-Site: same-origin.
+ * A request with neither header is refused. Together with SameSite=Lax cookies this blocks cross-site form posts.
+ */
+export function strictSameOrigin(h: Headers): boolean {
+  if (h.get("origin")) return sameOrigin(h);
+  return h.get("sec-fetch-site") === "same-origin";
+}
+
 export const requestHeaders = () => headers();

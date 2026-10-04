@@ -1,6 +1,6 @@
 import "server-only";
 import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { randomToken, sha256Hex } from "./crypto";
 import { getDb, getEnv } from "./db";
 
@@ -58,11 +58,24 @@ export async function getAdmin(): Promise<AdminUser | null> {
   return { id: row.user_id, email: row.email, name: row.name, role: row.role };
 }
 
-/** Use at the top of every admin page, action and handler. Sends visitors who are not signed in to the login page. */
+/**
+ * Use at the top of every admin page, server action and route handler. Checks on the server, from the database, on every call:
+ * a valid unexpired session, an active user, and the `admin` role. Not signed in: redirect to the login page.
+ * Signed in without the role: 404 (the role is read from the users table each time, never from the cookie).
+ */
 export async function requireAdmin(): Promise<AdminUser> {
   const admin = await getAdmin();
   if (!admin) redirect("/admin/login");
+  if (admin.role !== "admin") notFound();
   return admin;
+}
+
+/** For route handlers (JSON endpoints): returns the admin, or a ready 401/403 response to return as is. */
+export async function requireAdminApi(): Promise<{ admin: AdminUser } | { response: Response }> {
+  const admin = await getAdmin();
+  if (!admin) return { response: Response.json({ error: "unauthorized" }, { status: 401, headers: { "Cache-Control": "no-store" } }) };
+  if (admin.role !== "admin") return { response: Response.json({ error: "forbidden" }, { status: 403, headers: { "Cache-Control": "no-store" } }) };
+  return { admin };
 }
 
 export async function destroySession(): Promise<void> {
