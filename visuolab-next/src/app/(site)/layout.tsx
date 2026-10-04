@@ -1,5 +1,6 @@
 import type { Viewport } from "next";
 import SiteMotion from "@/components/motion/SiteMotion";
+import ShellFooter from "@/components/site/ShellFooter";
 import StyleGate from "@/components/site/StyleGate";
 import Nav from "@/components/site/chrome/Nav";
 
@@ -26,6 +27,7 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
         <SiteMotion>
           <Nav />
           {children}
+          <ShellFooter />
         </SiteMotion>
       </body>
     </html>

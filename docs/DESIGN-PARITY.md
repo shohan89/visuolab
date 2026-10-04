@@ -61,7 +61,8 @@ Only components that existed in the original design. No new visual component was
 | Component | Replaces | Kind |
 |---|---|---|
 | `Nav`, `Brand`, `MobileNav` (+ `content/nav.tsx`) | header markup in every page; mobile menu built by script | client (nav state, menu) |
-| `Footer` (variants `default`, `home`, `about`), `CtaBand` | footer and CTA band | server (footer form is a client wrapper) |
+| `Footer` (variants `default`, `home`, `about`), `CtaBand`, `ShellFooter` | footer and CTA band (CTA omitted on `/contact`, as in the original) | client wrapper picks the variant from the route |
+| `Pill` | the `.pill` CTA button with its double-arrow badge | server |
 | `HomeHero`, `HomeIntroRun`, `HomeServices`, `HomeWorkRun`, `HomeReviews` | home sections | server |
 | `AboutHeroRun`, `AboutPrinciples`, `AboutMission`, `AboutStory`, `AboutManifesto`, `AboutPlaces`, `AboutFaqRun` | About sections | server |
 | `SiteMotion` | Lenis, anchors, load-in, reveal in `main.js` | client |
@@ -160,6 +161,12 @@ Home → About → Home → `/about#careers`: stylesheet sets switch correctly (
 | Case stack mid-transition (scrollY 5600), 1440 | 0 |
 | Hero scrolled (scrollY 500), 1440 | 0 |
 
+
+### 5.5 Global shell, width sweep
+
+Nav (`header.nav`), CTA band (`section.cta`) and footer (`footer.footer`) were screenshotted as elements on Home and About at 12 widths (1920, 1440, 1280, 1100, 1024, 900, 820, 768, 600, 560, 390, 360, covering every breakpoint the shell CSS uses) and compared with the original: **0 differing pixels in all 72 comparisons**, with identical element sizes. Full-page diffs after moving the footer and CTA into the root layout are still 0.
+
+Shell pieces and where they live: `Nav` / `MegaMenu` markup / `MobileNav` / `Brand` (logo) / `Pill` (CTA button) in `components/site/chrome` and `components/site/ui`; `ShellFooter` (CTA band + footer, route-aware) and `StyleGate` in the root layout; global typography, spacing and container system are the original classes in `base.css` (`.wrap`, `.h1`–`.h3`, `.lead`, `.label`, `.sec`, `.rhythm`). The original has no page transitions (no view-transition CSS, no transition script), so none exist.
 
 ## 6. Known differences
 

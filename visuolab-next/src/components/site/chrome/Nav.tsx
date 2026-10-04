@@ -4,15 +4,9 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { cta, mainLinks, promo, serviceCards, serviceGroups } from "@/content/nav";
 import { subscribeScroll } from "@/lib/motion/scroll";
+import Pill from "@/components/site/ui/Pill";
 import Brand from "./Brand";
 import MobileNav from "./MobileNav";
-
-const Arrow = () => (
-  <span className="badge">
-    <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
-    <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
-  </span>
-);
 
 /** Header: solid after 24px of scroll, dark text while it sits over a light section (.scrolled / .over-light). */
 export default function Nav() {
@@ -84,10 +78,7 @@ export default function Nav() {
             <Link href={l.href} key={l.href}>{l.label}</Link>
           ))}
         </nav>
-        <Link className="pill nav-cta" href={cta.href}>
-          {cta.label}
-          <Arrow />
-        </Link>
+        <Pill className="nav-cta" href={cta.href}>{cta.label}</Pill>
         <button
           className="nav-burger"
           aria-label="Menu"

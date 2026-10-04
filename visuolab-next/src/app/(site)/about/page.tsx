@@ -6,8 +6,6 @@ import AboutMission from "@/components/site/about/AboutMission";
 import AboutPlaces from "@/components/site/about/AboutPlaces";
 import AboutPrinciples from "@/components/site/about/AboutPrinciples";
 import AboutStory from "@/components/site/about/AboutStory";
-import CtaBand from "@/components/site/chrome/CtaBand";
-import Footer from "@/components/site/chrome/Footer";
 
 export const metadata: Metadata = {
   title: "About — Visuolab",
@@ -25,8 +23,6 @@ export default function AboutPage() {
       <AboutManifesto />
       <AboutPlaces />
       <AboutFaqRun />
-      <CtaBand />
-      <Footer variant="about" />
     </>
   );
 }

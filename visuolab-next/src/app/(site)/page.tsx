@@ -1,6 +1,4 @@
 import type { Metadata } from "next";
-import CtaBand from "@/components/site/chrome/CtaBand";
-import Footer from "@/components/site/chrome/Footer";
 import HomeHero from "@/components/site/home/HomeHero";
 import HomeIntroRun from "@/components/site/home/HomeIntroRun";
 import HomeReviews from "@/components/site/home/HomeReviews";
@@ -20,8 +18,6 @@ export default function HomePage() {
       <HomeServices />
       <HomeWorkRun />
       <HomeReviews />
-      <CtaBand />
-      <Footer variant="home" />
     </>
   );
 }

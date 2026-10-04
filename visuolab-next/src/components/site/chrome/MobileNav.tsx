@@ -7,6 +7,7 @@ import { contactEmail, cta, mainLinks, promo, serviceGroups } from "@/content/na
 import { st } from "@/lib/css";
 import { prefersReducedMotion } from "@/lib/motion/scroll";
 import { useLenis } from "@/components/motion/SiteMotion";
+import Pill from "@/components/site/ui/Pill";
 import Brand from "./Brand";
 
 /**
@@ -133,13 +134,7 @@ export default function MobileNav({ open, onClose, returnFocusTo }: { open: bool
         ))}
       </nav>
       <div className="mnav-foot wrap" style={st({ "--i": i })}>
-        <Link className="pill mnav-cta" href={cta.href}>
-          {cta.label}
-          <span className="badge">
-            <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
-            <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
-          </span>
-        </Link>
+        <Pill className="mnav-cta" href={cta.href}>{cta.label}</Pill>
         <a className="mnav-mail" href={`mailto:${contactEmail}`}>{contactEmail}</a>
       </div>
     </div>,
