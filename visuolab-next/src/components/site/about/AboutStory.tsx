@@ -1,0 +1,9 @@
+import { st } from "@/lib/css";
+
+export default function AboutStory() {
+  return (
+    <>
+      <section className="sec story has-aurora glow-right" id="story" aria-labelledby="story-title"><div className="aurora" aria-hidden="true"><span className="s1"></span><span className="s2"></span></div><div className="wrap"><div className="story-head sec-grid"><p className="label reveal">Our story</p><h2 className="h2 reveal" id="story-title" style={st({ "--i": "0" })}>{"From "}<em>two laptops</em>{" in Lisbon to a studio on four continents"}</h2></div><ol className="timeline reveal-group"><li className="milestone reveal" style={st({ "--i": "0" })}><span className="year">2017</span><h3>Two designers, one desk</h3><p>Visuolab starts as a two-person brand studio in a shared Lisbon workspace. First client: a seed-stage fintech that is still with us.</p></li><li className="milestone reveal" style={st({ "--i": "1" })}><span className="year">2019</span><h3>Product joins brand</h3><p>The first product-design retainer turns a brand shop into a full design studio. Five people, first Clutch reviews.</p></li><li className="milestone reveal" style={st({ "--i": "2" })}><span className="year">2021</span><h3>Remote by design</h3><p>We go fully distributed, with teammates in Toronto and Singapore, and become a Webflow professional partner.</p></li><li className="milestone reveal" style={st({ "--i": "3" })}><span className="year">2023</span><h3>The hundredth launch</h3><p>Design engineering and motion become core disciplines. First Awwwards Site of the Day.</p></li><li className="milestone reveal" style={st({ "--i": "4" })}><span className="year">2026</span><h3>Today</h3><p>{"Fourteen people across four continents, 140+ launches — and still no account managers between you and the work."}</p></li></ol></div></section>
+    </>
+  );
+}

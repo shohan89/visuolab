@@ -4,7 +4,7 @@ Status: design only. No dashboard code and no content migration exists yet. Basi
 
 ## 0. Principles and decisions
 
-1. **The static site is the visual source of truth.** The public site keeps the six original CSS files, global and in the original order. JSX reproduces the original DOM class for class. A screenshot diff against the static site gates every public page.
+1. **The static site is the visual source of truth.** The public site keeps the six original CSS files byte-for-byte, in the original order, and applies to each route only the sheets the static page originally loaded (`StyleGate`, see `DESIGN-PARITY.md`) because the files reuse class names such as `.out` and `.about-lead` with different meanings. JSX reproduces the original DOM class for class. A screenshot diff against the static site gates every public page.
 2. **Server Components by default.** Public pages are server-rendered markup from D1. Client Components exist only where the audit found real interaction (section 4).
 3. **Content is data, structure is code.** Page structure, section order, icons and SVG art stay in code. Copy, lists, numbers, images and SEO fields come from D1 and R2.
 4. **One Worker.** Public site, admin and API run in one Cloudflare Worker built with **vinext** (Cloudflare's Vite-based Next.js runtime, `vinext` + `@vinext/cloudflare`) and configured through Wrangler. One deploy, one set of bindings.
@@ -95,7 +95,7 @@ Rules:
 
 - `src/lib/**` and `src/actions/**` are server-only unless a file says otherwise. Server-only files import `"server-only"`.
 - Only `components/motion/**` and a few leaf components carry `"use client"`.
-- Public styles are imported only in `(site)/layout.tsx`. Admin styles only in `(admin)/layout.tsx`.
+- Public stylesheets are linked only by `(site)/layout.tsx` through `StyleGate`, which switches sheets per route. Admin styles only in `(admin)/layout.tsx`.
 
 ## 2. Route structure
 
