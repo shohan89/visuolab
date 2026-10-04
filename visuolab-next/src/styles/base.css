@@ -1,0 +1,386 @@
+/* ==========================================================================
+   Visuolab — base: tokens, reset, type, buttons, nav, section grid, footer
+   ========================================================================== */
+
+:root{
+  --bg:#0a0a0c;
+  --bg-2:#111114;
+  --panel:#141417;
+  --ink:#f2f2f5;
+  --ink-2:#c9c9d2;
+  --muted:#8d8d99;
+  --line:rgba(255,255,255,.1);
+  --line-2:rgba(255,255,255,.06);
+  --glow-a:#4c5bff;          /* electric blue  */
+  --glow-b:#7b3fe4;          /* violet         */
+  --brand:#3826c7;           /* primary brand colour: hovers, active states, accents */
+  --brand-2:#7a68ff;         /* readable tint of the brand on dark grounds */
+  --amber:#ffb86b;           /* hero orb light */
+  --star:#f5c451;
+
+  --light-bg:#f3f3f5;
+  --light-panel:#ffffff;
+  --light-ink:#0b0b0e;
+  --light-muted:#6b6b76;
+  --light-line:rgba(10,10,14,.1);
+
+  --sans:"Inter Tight","Inter","Helvetica Neue",Arial,sans-serif;
+  --serif:"Instrument Serif",Georgia,"Times New Roman",serif;
+  --nav-font:"DM Sans","Inter Tight",system-ui,sans-serif;   /* closest open match to Arounda's Gordita */
+
+  --nav-h:92px;                     /* Arounda: 8px breathing room + ~84px bar */
+  --gutter:clamp(20px,5vw,106px);   /* Halo Lab: ~71px gutters at 1440, ~106px at 1850 */
+  --max:1640px;
+  --ease:cubic-bezier(.22,.61,.36,1);
+  --ease-out:cubic-bezier(.16,1,.3,1);
+}
+
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;scroll-behavior:auto}
+body{
+  position:relative;
+  margin:0;background:var(--bg);color:var(--ink);
+  font-family:var(--sans);font-size:16px;line-height:1.55;font-weight:400;
+  -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
+  overflow-x:hidden;
+}
+html.lenis,html.lenis body{height:auto}
+.lenis.lenis-smooth{scroll-behavior:auto!important}
+img,svg{display:block;max-width:100%}
+a{color:inherit;text-decoration:none}
+ul,ol{margin:0;padding:0;list-style:none}
+h1,h2,h3,h4,p{margin:0}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+::selection{background:rgba(76,91,255,.45);color:#fff}
+
+/* ---- type ------------------------------------------------------------- */
+.h1{font-size:clamp(38px,5.6vw,80px);line-height:1.02;letter-spacing:-.035em;font-weight:500}
+.h2{font-size:clamp(34px,4.4vw,64px);line-height:1.04;letter-spacing:-.032em;font-weight:500;text-wrap:balance}
+.h3{font-size:clamp(24px,2.4vw,34px);line-height:1.15;letter-spacing:-.025em;font-weight:500;text-wrap:balance}
+.h1 em,.h2 em,.h3 em,.serif{
+  font-family:var(--serif);font-style:italic;font-weight:400;letter-spacing:-.01em;font-size:1.1em;line-height:.9;
+}
+.h1 .pill-em{                                  /* Arounda-style tinted italic words */
+  display:inline-block;padding:.02em .28em .06em;margin:0 .04em;border-radius:.45em;
+  background:rgba(255,255,255,.07);
+}
+.lead{font-size:clamp(16px,1.2vw,19px);line-height:1.55;color:var(--ink-2);text-wrap:pretty}
+.muted{color:var(--muted)}
+.label{
+  font-size:11px;font-weight:500;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);
+}
+.light .label{color:var(--light-muted)}
+.dim{color:rgba(255,255,255,.35)}
+.light .dim{color:rgba(10,10,14,.32)}
+
+/* ---- layout ----------------------------------------------------------- */
+.wrap{width:min(var(--max),100% - var(--gutter)*2);margin-inline:auto}
+.sec{padding:clamp(88px,12vh,160px) 0}
+.sec-grid{display:grid;grid-template-columns:1fr;gap:18px;align-items:start}   /* label sits above the title */
+.sec-grid>.label{padding-top:0}
+.light{background:var(--light-bg);color:var(--light-ink)}
+.light .lead{color:#3c3c46}
+.light .muted{color:var(--light-muted)}
+.hairline{height:1px;background:var(--line)}
+.scroll-sequence{--banner-top:var(--nav-h)}
+@media (max-width:900px){.sec-grid{grid-template-columns:1fr;gap:16px}.why .sec-grid{grid-template-columns:1fr}}
+.light .hairline{background:var(--light-line)}
+
+/* ---- buttons ---------------------------------------------------------- */
+.pill{
+  --pill-bg:#fff;--pill-ink:#0b0b0e;--badge-bg:#0b0b0e;--badge-ink:#fff;
+  display:inline-flex;align-items:center;gap:14px;
+  height:54px;padding:0 6px 0 24px;border-radius:999px;
+  background:var(--pill-bg);color:var(--pill-ink);
+  font-size:15px;font-weight:500;letter-spacing:-.005em;white-space:nowrap;
+  transition:transform .35s var(--ease-out),box-shadow .35s var(--ease-out),background-color .35s var(--ease-out),color .35s var(--ease-out);
+}
+.pill .badge{
+  width:42px;height:42px;border-radius:50%;display:grid;place-items:center;
+  background:var(--badge-bg);color:var(--badge-ink);overflow:hidden;position:relative;
+  transition:background-color .35s var(--ease-out),color .35s var(--ease-out);
+}
+.pill:hover{background:var(--brand);color:#fff}                 /* every pill goes brand on hover */
+.pill:hover .badge{background:#fff;color:var(--brand)}
+::selection{background:var(--brand);color:#fff}
+.pill .badge svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;
+  transition:transform .4s var(--ease-out),opacity .25s}
+.pill .badge svg+svg{position:absolute;transform:translate(-44px,0);opacity:0}
+.pill:hover{transform:translateY(-1px)}
+.pill:hover .badge svg:first-child{transform:translate(44px,0);opacity:0}
+.pill:hover .badge svg+svg{transform:translate(0,0);opacity:1}
+.pill.dark{--pill-bg:#0b0b0e;--pill-ink:#fff;--badge-bg:#fff;--badge-ink:#0b0b0e}
+.pill.ghost{--pill-bg:rgba(255,255,255,.06);--pill-ink:#fff;--badge-bg:#fff;--badge-ink:#0b0b0e;border:1px solid var(--line)}
+/* on a light section the ghost pill would be white on white */
+.light .pill.ghost{--pill-bg:rgba(10,10,14,.04);--pill-ink:var(--light-ink);--badge-bg:#0b0b0e;--badge-ink:#fff;border-color:var(--light-line)}
+.pill.sm{height:44px;padding-left:18px;font-size:14px}
+.pill.sm .badge{width:34px;height:34px}
+.pill:focus-visible{outline:2px solid #fff;outline-offset:3px}
+.light .pill:focus-visible{outline-color:#0b0b0e}
+
+.arrow-link{
+  display:inline-flex;align-items:center;gap:10px;font-size:15px;font-weight:500;color:var(--ink);
+  transition:gap .3s var(--ease-out);
+}
+.arrow-link svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.arrow-link:hover{gap:14px;color:var(--brand-2)}
+.light .arrow-link:hover{color:var(--brand)}
+
+.round-btn{
+  width:52px;height:52px;border-radius:50%;display:grid;place-items:center;
+  background:#0b0b0e;color:#fff;transition:transform .3s var(--ease-out),opacity .3s;
+}
+.round-btn svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.round-btn:hover{transform:scale(1.06);background:var(--brand);color:#fff}
+.round-btn:disabled{opacity:.3;cursor:default;transform:none}
+
+/* ---- aurora: Arounda's blurred blue light streaks on the near-black page --- */
+/* ---- corner beam (Arounda): a shaft of light thrown in from the bottom-left.
+   A conic gradient gives the true cone — a blurred ellipse only ever reads as a
+   blob — and the radial mask fades it with distance from the apex. The layer
+   wraps the hero AND the section below it, because a glow that stops at the
+   hero's own edge leaves a straight line across the seam. The beam is sized in
+   px, not in % of the run, so it looks the same whatever follows the hero. */
+/* apex + tail have to stay inside the run, or the beam paints over whatever
+   section follows it */
+.hero-run{--beam-h:clamp(460px,76vh,800px);--beam-tail:clamp(200px,28vh,380px);position:relative}
+.hero-run>section{position:relative;z-index:1}
+/* The apex is placed with a length, not at the element's own corner, and the box
+   runs on past it by --beam-tail — with the apex sitting on the bottom edge the
+   cone's lower half was cut off by the box. Radii are derived from --beam-h so
+   the falloff scales with the beam rather than with the box. */
+.hero-run .aurora .s1{
+  left:0;top:0;width:96%;height:calc(var(--beam-h) + var(--beam-tail));
+  border-radius:0;transform:none;animation:none;filter:blur(52px);
+  /* blue side of the brand (#1964d1 / #2864ff) rather than the violet tint */
+  background:conic-gradient(from 0deg at 0 var(--beam-h),
+    transparent 6deg,rgba(18,58,214,.32) 20deg,rgba(24,86,236,.78) 36deg,
+    rgba(40,124,255,.98) 52deg,rgba(126,182,255,1) 64deg,rgba(38,116,252,.94) 78deg,
+    rgba(18,70,208,.58) 92deg,rgba(8,32,104,.2) 106deg,transparent 120deg);
+  -webkit-mask-image:radial-gradient(ellipse calc(var(--beam-h) * 1.9) calc(var(--beam-h) * .98) at 0 var(--beam-h),
+    #000 0%,rgba(0,0,0,.92) 44%,rgba(0,0,0,.44) 70%,transparent 97%);
+  mask-image:radial-gradient(ellipse calc(var(--beam-h) * 1.9) calc(var(--beam-h) * .98) at 0 var(--beam-h),
+    #000 0%,rgba(0,0,0,.92) 44%,rgba(0,0,0,.44) 70%,transparent 97%);
+}
+/* hot spot at the apex, so the corner reads as the source */
+.hero-run .aurora .s2{left:-14%;top:calc(var(--beam-h) - 170px);width:48%;height:340px;
+  transform:rotate(-18deg);filter:blur(40px);animation:none;
+  background:radial-gradient(ellipse 42% 50% at 34% 50%,rgba(226,240,255,.9) 0%,rgba(66,132,255,.55) 26%,transparent 70%)}
+
+/* edge glow: a bright blue light bleeding in from one side, picking up the
+   electric blue of the homepage's blue run rather than the softer brand violet */
+.glow-right .aurora .s1{--rot:14deg;right:-26%;top:-16%;width:88%;height:130%;
+  background:radial-gradient(ellipse at 62% 50%,rgba(40,100,255,.8) 0%,rgba(17,80,214,.5) 32%,rgba(11,31,102,.24) 56%,transparent 74%)}
+.glow-right .aurora .s2{--rot:8deg;right:-10%;top:24%;width:42%;height:58%;
+  background:radial-gradient(ellipse at 50% 50%,rgba(104,156,255,.42),transparent 62%)}
+.glow-left .aurora .s1{--rot:-14deg;left:-26%;top:-16%;width:88%;height:130%;
+  background:radial-gradient(ellipse at 38% 50%,rgba(40,100,255,.72) 0%,rgba(17,80,214,.44) 32%,rgba(11,31,102,.22) 56%,transparent 74%)}
+.glow-left .aurora .s2{--rot:-8deg;left:-10%;top:26%;width:42%;height:58%;
+  background:radial-gradient(ellipse at 50% 50%,rgba(104,156,255,.36),transparent 62%)}
+.has-aurora{position:relative;overflow-x:clip}   /* side glows reach past the page edge: clip them sideways only, so they still spread up and down */
+.has-aurora>.wrap{position:relative;z-index:1}
+.aurora{position:absolute;inset:0;z-index:0;pointer-events:none}
+.aurora span{position:absolute;border-radius:50%;filter:blur(72px);will-change:transform;animation:aurora 22s ease-in-out infinite alternate}
+.aurora .s2{animation-duration:29s;animation-delay:-9s}
+.aurora .s3{animation-duration:35s;animation-delay:-17s}
+@keyframes aurora{to{transform:rotate(var(--rot,0deg)) translate(3%,-4%) scale(1.06)}}
+.aurora span{transform:rotate(var(--rot,0deg))}
+
+/* ---- nav -------------------------------------------------------------- */
+.nav{
+  position:absolute;inset:0 0 auto 0;z-index:50;height:var(--nav-h);   /* scrolls away with the page */
+  padding-top:8px;                                    /* sits a little off the top edge, like Arounda */
+  display:flex;align-items:center;
+  transition:background-color .4s var(--ease),border-color .4s var(--ease),backdrop-filter .4s,padding .4s var(--ease),height .4s var(--ease);
+  border-bottom:1px solid transparent;
+}
+.nav.scrolled{padding-top:0;height:84px}                               /* no bar, no blur — the nav is transparent */
+.nav.over-light{color:var(--light-ink)}
+
+.nav .wrap{position:relative;display:grid;grid-template-columns:1fr auto 1fr;align-items:center}
+.brand{display:inline-flex;align-items:center;line-height:0}
+.brand img{height:50px;width:auto;display:block}   /* same height as the nav's Contact button */
+.brand .logo-d{display:none}
+.nav.over-light .brand .logo-l{display:none}
+.nav.over-light .brand .logo-d{display:block}
+.footer .brand img{height:38px}
+.nav-links{display:flex;gap:34px;font-family:var(--nav-font);font-size:18px;font-weight:500;letter-spacing:0}          /* Arounda: 16px / 500, 36px apart */
+.nav-links a{opacity:.85;transition:opacity .25s}
+.nav-links a:hover{opacity:1}
+.nav-links [data-menu]{display:inline-flex;align-items:center;gap:6px}
+/* Services is a button now (the overview page is hidden): it only opens the menu */
+.nav-links button[data-menu]{padding:0;border:0;background:none;font:inherit;letter-spacing:inherit;color:inherit;cursor:pointer;opacity:.85;transition:opacity .25s}
+.nav-links button[data-menu]:hover,.nav-item:focus-within button[data-menu]{opacity:1}
+.nav-links [data-menu] svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.nav-links [data-menu] svg{transition:transform .3s var(--ease-out)}
+.nav-item{position:static;display:inline-flex}   /* the mega panel centres on .nav .wrap */
+.nav-item:hover [data-menu] svg,.nav-item:focus-within [data-menu] svg{transform:rotate(180deg)}
+.menu{                                              /* dropdown panel (Halo Lab-style mega menu) */
+  position:absolute;top:calc(100% + 14px);left:-12px;min-width:236px;padding:8px;border-radius:16px;
+  background:rgba(8,10,22,.92);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+  box-shadow:0 30px 60px -30px rgba(0,0,0,.7);
+  opacity:0;visibility:hidden;transform:translateY(8px);
+  transition:opacity .28s var(--ease-out),transform .28s var(--ease-out),visibility 0s .28s;z-index:5;
+}
+.menu::before{content:"";position:absolute;left:0;right:0;top:-14px;height:14px}   /* keeps hover alive across the gap */
+.nav-item:hover .menu,.nav-item:focus-within .menu{opacity:1;visibility:visible;transform:none;transition-delay:0s}
+.menu a{display:flex;flex-direction:column;gap:2px;padding:10px 12px;border-radius:10px;font-size:14.5px;white-space:nowrap;opacity:.9}
+.menu a:hover{background:rgba(122,104,255,.18);opacity:1}
+.menu a span{font-size:12px;font-weight:400;color:var(--muted)}
+
+/* ---- mega menu: two panels, cards left, link columns right -------------- */
+.menu.mega{
+  left:50%;transform:translate(-50%,8px);width:min(1120px,calc(100vw - var(--gutter)*2));
+  display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:0;padding:0;border-radius:22px;overflow:hidden;
+  background:#fff;border-color:var(--light-line);color:var(--light-ink);box-shadow:0 40px 80px -40px rgba(10,10,20,.45);
+}
+.nav-item:hover .menu.mega,.nav-item:focus-within .menu.mega{transform:translate(-50%,0)}
+.menu.mega a{color:var(--light-ink)}
+.menu.mega a:hover{background:rgba(56,38,199,.07)}
+.mega-label{font-size:11px;font-weight:500;letter-spacing:.18em;text-transform:uppercase;color:var(--light-muted)}
+.mega-main{padding:28px;border-right:1px solid var(--light-line)}
+.mega-cards{display:grid;gap:4px;margin-top:16px}
+.menu .mega-card{gap:4px 16px}                     /* beats .menu a{gap:2px} */
+.mega-card{display:grid!important;grid-template-columns:auto 1fr;grid-template-areas:"i t" ". d";gap:4px 16px;padding:14px;border-radius:14px;white-space:normal!important}
+.mega-card .ico{grid-area:i;width:34px;height:34px;border-radius:10px;display:grid;place-items:center;border:1px solid var(--light-line);color:var(--brand);font-size:0}
+.mega-card .ico svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.mega-card b{grid-area:t;align-self:center;font-size:17px;font-weight:500;letter-spacing:-.015em}
+.mega-card .d{grid-area:d;font-size:13px!important;line-height:1.4;color:var(--light-muted);white-space:normal}
+.mega-card:hover .ico{border-color:var(--brand);background:rgba(56,38,199,.1)}
+.mega-promo{position:relative;display:block!important;margin-top:16px;padding:18px 20px!important;border-radius:16px;white-space:normal!important;
+  background:var(--brand);border:1px solid var(--brand);color:#fff!important}
+.mega-promo b{display:flex;align-items:center;gap:10px;font-size:16px;font-weight:500;color:#fff}
+.mega-promo .tag{font-size:11px!important;font-weight:500;color:#fff!important;padding:4px 9px;border-radius:999px;background:rgba(255,255,255,.22)}
+.mega-promo>span{display:block;margin-top:6px;font-size:13.5px!important;color:rgba(255,255,255,.82)!important}
+.mega-promo svg{position:absolute;right:18px;top:18px;width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;opacity:.75;transition:transform .35s var(--ease-out),opacity .3s}
+.menu.mega .mega-promo{background:var(--brand)}
+.menu.mega .mega-promo:hover{background:#2d1eab;border-color:#2d1eab}   /* beats .menu.mega a:hover, which washed it pale under white text */
+.mega-promo:hover svg{opacity:1;transform:rotate(45deg)}
+.mega-side{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;padding:28px 24px}
+.mega-side ul{list-style:none;margin:14px 0 0;padding:0}
+.mega-side li a{display:block;padding:7px 8px;margin-left:-8px;font-size:14px;border-radius:8px;color:#3c3c46}
+.mega-side li a:hover{color:var(--brand)}
+.nav.over-light .menu{background:rgba(255,255,255,.97);border-color:var(--light-line);box-shadow:0 30px 60px -30px rgba(10,10,20,.35)}
+.nav.over-light .menu a:hover{background:rgba(56,38,199,.08)}
+@media (max-width:1100px){
+  .menu.mega{grid-template-columns:1fr}
+  .mega-main{border-right:0;border-bottom:1px solid var(--light-line)}
+}
+.nav-cta{justify-self:end;font-family:var(--nav-font);font-size:16px;letter-spacing:0;height:50px;padding:0 6px 0 22px;gap:12px}   /* a notch smaller than the hero pills */
+.nav-cta .badge{width:38px;height:38px}
+.nav-cta .badge svg{width:15px;height:15px}
+.nav.over-light .pill{--pill-bg:#0b0b0e;--pill-ink:#fff;--badge-bg:#fff;--badge-ink:#0b0b0e}
+.nav-burger{display:none;justify-self:end;width:44px;height:44px;border-radius:50%;border:1px solid var(--line);place-items:center}
+.nav-burger svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round}
+@media (max-width:900px){.nav-links,.nav-cta{display:none}.nav-burger{display:grid;grid-column:3}.nav .brand img{height:44px}}   /* logo left, menu button pinned to the right column */
+
+/* ---- reveal ----------------------------------------------------------- */
+.reveal{opacity:0;transform:translateY(28px);transition:opacity .9s var(--ease-out),transform .9s var(--ease-out);transition-delay:calc(var(--i,0)*80ms)}
+.reveal.in{opacity:1;transform:none}
+@media (prefers-reduced-motion:reduce){
+  .reveal{opacity:1;transform:none;transition:none}
+  *{scroll-behavior:auto!important}
+}
+
+/* ---- footer ----------------------------------------------------------- */
+.footer{padding:clamp(72px,9vh,120px) 0 32px;border-top:1px solid var(--line-2);background:#08080a}
+.footer-top{display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:48px clamp(24px,4vw,64px)}
+.footer h4{font-size:14px;font-weight:500;margin-bottom:18px}
+.footer li{margin:0 0 12px;font-size:14px;color:var(--muted)}
+.footer li a{transition:color .25s}
+.footer li a:hover{color:var(--ink)}
+.newsletter p{font-size:clamp(20px,1.8vw,24px);line-height:1.25;letter-spacing:-.02em;max-width:22ch;margin-bottom:22px}
+.newsletter form{display:flex;align-items:center;max-width:380px;height:54px;padding:0 6px 0 20px;border:1px solid var(--line);border-radius:999px}
+.newsletter input{flex:1;min-width:0;background:none;border:0;color:var(--ink);font:inherit;font-size:14px;outline:none}
+.newsletter input::placeholder{color:var(--muted)}
+.newsletter button{width:42px;height:42px;border-radius:50%;background:#fff;color:#0b0b0e;display:grid;place-items:center;transition:background-color .3s,color .3s}
+.newsletter button:hover{background:var(--brand);color:#fff}
+.newsletter button svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.badges{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px;margin-top:clamp(48px,7vh,80px)}
+.badge-card{                                       /* Halo Lab-style award tiles: mark on top, two-line caption */
+  display:grid;gap:18px;justify-items:center;align-content:start;
+  padding:28px 14px 26px;border-radius:20px;background:var(--bg-2);border:1px solid var(--line-2);
+  text-align:center;font-size:13px;line-height:1.45;color:rgba(255,255,255,.82);
+}
+.badge-card p{margin:0}
+.badge-card .mark{height:40px;display:inline-flex;align-items:center;justify-content:center;gap:8px;color:#fff}
+.badge-card .mark b{font-size:18px;font-weight:600;letter-spacing:-.02em;line-height:1}
+.badge-card .ico{width:26px;height:26px;fill:currentColor}
+.badge-card .laurels .ico{width:30px;height:30px}
+.badge-card .laurel{width:14px;height:32px;fill:currentColor;color:rgba(255,255,255,.85)}
+.badge-card .laurel.flip{transform:scaleX(-1)}
+.badge-card .clutch{flex-direction:column;gap:3px}
+.badge-card .clutch b{font-size:22px}
+.badge-card .clutch .stars{color:#ff3d2e;font-size:10px;letter-spacing:2px;line-height:1}
+.badge-card .aw b i{font-style:normal;color:var(--amber)}
+.badge-card .gf{color:#2f6bff}
+.badge-card .gf .g{width:22px;height:22px;border-radius:6px;background:#2f6bff;color:#fff;font-weight:700;font-size:14px;display:grid;place-items:center}
+.footer-bottom{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px 24px;margin-top:40px;padding-top:24px;border-top:1px solid var(--line-2);font-size:13px;color:var(--muted)}
+.footer-bottom .legal{display:flex;gap:20px}
+.footer-bottom .social{display:flex;gap:14px}
+.footer-bottom .social a{width:34px;height:34px;border-radius:50%;border:1px solid var(--line-2);display:grid;place-items:center;transition:border-color .25s,color .25s}
+.footer-bottom .social a:hover{border-color:var(--brand-2);color:var(--brand-2)}
+.footer-bottom .social svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+@media (max-width:1000px){.badges{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:820px){.footer-top{grid-template-columns:1fr 1fr}.newsletter{grid-column:1/-1}}
+@media (max-width:560px){.badges{grid-template-columns:repeat(2,minmax(0,1fr))}.footer-top{grid-template-columns:1fr}}
+
+/* ---- one spacing rhythm across the site: 150px of clear space wherever the
+   background carries on from one section into the next. Sections carry the gap
+   as bottom padding; tops are zero. Colour hand-offs are marked .seam-top /
+   .seam-bottom and keep their own longer padding — that padding is what lets
+   the blue → light gradients blend. The case-page cover and the About slider
+   stay attached to their hero. (Service pages use the same rule via .svc-page.) */
+.rhythm{--sec-gap:150px}
+.rhythm .sec:not(.seam-top){padding-top:0}
+.rhythm .sec:not(.seam-bottom){padding-bottom:var(--sec-gap)}
+.rhythm :is(.page-hero,.works-hero,.mosaic,.post-page,.cover-wrap,.gallery-sec,.wide-sec,.works-grid-sec,.featured-sec,.posts-sec){padding-bottom:var(--sec-gap)}
+.rhythm :is(.gallery-sec,.wide-sec,.works-grid-sec,.featured-sec,.posts-sec){padding-top:0}
+.rhythm .showreel{padding-top:var(--sec-gap);padding-bottom:var(--sec-gap)}
+.rhythm .works-reviews{margin-top:0}
+/* the section before the CTA keeps its 150px too: the CTA's floating project
+   cards sit right at its top edge, so the gap has to end where the CTA begins */
+
+/* ---- mobile menu (built by main.js from the desktop nav) ----------------- */
+.nav-burger{color:inherit;background:none;cursor:pointer}
+.mnav{position:fixed;inset:0;z-index:100;display:flex;flex-direction:column;overflow-y:auto;overscroll-behavior:contain;
+  background:#0b0b0e;color:#fff;opacity:0;transition:opacity .35s var(--ease-out)}
+.mnav[hidden]{display:none}
+.mnav.is-open{opacity:1}
+.mnav::before{content:"";position:absolute;left:-35%;top:-12%;width:125%;height:72%;pointer-events:none;filter:blur(46px);
+  background:radial-gradient(ellipse at 32% 42%,rgba(40,100,255,.5) 0%,rgba(17,80,214,.22) 38%,transparent 70%)}   /* the site's blue */
+.mnav-top{position:relative;flex:none;display:flex;align-items:center;justify-content:space-between;height:var(--nav-h)}
+.mnav-top .brand img{height:44px}
+.mnav-close{display:grid;place-items:center;width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:none;color:#fff;cursor:pointer}
+.mnav-close svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round}
+.mnav-body{position:relative;flex:1 0 auto;display:flex;flex-direction:column;padding-top:clamp(16px,4vh,40px)}
+.mnav-link{display:flex;align-items:center;justify-content:space-between;width:100%;padding:18px 0;border:0;border-bottom:1px solid var(--line);
+  background:none;color:#fff;text-align:left;cursor:pointer;
+  font-family:var(--sans);font-size:clamp(30px,8.4vw,42px);font-weight:500;line-height:1.1;letter-spacing:-.03em;
+  opacity:0;transform:translateY(14px);transition:opacity .45s var(--ease-out),transform .55s var(--ease-out),color .25s;
+  transition-delay:calc(var(--i,0) * 55ms + 90ms)}
+.mnav.is-open .mnav-link{opacity:1;transform:none}
+.mnav-link:hover,.mnav-link:focus-visible{color:var(--brand-2)}
+.mnav-toggle svg{width:24px;height:24px;flex:none;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;transition:transform .3s var(--ease-out)}
+.mnav-toggle[aria-expanded="true"]{border-bottom-color:transparent}
+.mnav-toggle[aria-expanded="true"] svg{transform:rotate(180deg)}
+.mnav-sub{padding:4px 0 22px;border-bottom:1px solid var(--line)}
+.mnav-group+.mnav-group{margin-top:20px}
+.mnav-group-label{margin:0 0 6px;font-size:11px;font-weight:500;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}
+.mnav-group ul{list-style:none;margin:0;padding:0}
+.mnav-group a{display:block;padding:7px 0;font-size:17px;color:var(--ink-2)}
+.mnav-group a:hover,.mnav-group a:focus-visible{color:#fff}
+/* the sprint offer, as in the desktop dropdown */
+.mnav-promo{display:block;margin-top:22px;padding:16px 18px;border-radius:16px;background:var(--brand);color:#fff}
+.mnav-promo b{display:flex;align-items:center;gap:10px;font-size:16px;font-weight:500}
+.mnav-promo .tag{font-size:11px;font-weight:500;padding:4px 9px;border-radius:999px;background:rgba(255,255,255,.22)}
+.mnav-promo>span{display:block;margin-top:6px;font-size:13.5px;color:rgba(255,255,255,.82)}
+.mnav-foot{position:relative;flex:none;display:flex;flex-wrap:wrap;align-items:center;gap:16px 24px;
+  padding-top:32px;padding-bottom:max(32px,env(safe-area-inset-bottom));
+  opacity:0;transform:translateY(14px);transition:opacity .45s var(--ease-out),transform .55s var(--ease-out);transition-delay:calc(var(--i,0) * 55ms + 90ms)}
+.mnav.is-open .mnav-foot{opacity:1;transform:none}
+.mnav-mail{font-size:15px;color:var(--ink-2)}
+.mnav :focus-visible{outline:2px solid var(--brand-2);outline-offset:3px}
+html.mnav-open,html.mnav-open body{overflow:hidden}
+@media (min-width:901px){.mnav{display:none!important}}
+@media (prefers-reduced-motion:reduce){.mnav,.mnav-link,.mnav-foot{transition:none}}

@@ -1,0 +1,15 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "visuolab-next",
+  "main": "vinext/server/fetch-handler",
+  "compatibility_date": "2026-09-01",
+  "account_id": "48fa30c68a3fcf35323392af2c199e01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": { "directory": "dist/client", "not_found_handling": "none", "binding": "ASSETS" },
+  "d1_databases": [
+    { "binding": "DB", "database_name": "visuolab", "database_id": "09818a92-a4b7-4ec1-a009-740b8e353402", "migrations_dir": "migrations" }
+  ],
+  "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "visuolab-media" }],
+  "observability": { "enabled": true },
+  "vars": { "SITE_URL": "http://localhost:3001", "ADMIN_EMAIL": "visuolab@gmail.com", "MAIL_FROM": "Visuolab <onboarding@resend.dev>", "MAIL_TO": "visuolab@gmail.com" }
+}

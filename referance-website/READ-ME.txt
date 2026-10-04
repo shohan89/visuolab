@@ -1,0 +1,44 @@
+VISUOLAB — WEBSITE FILES
+========================
+
+A static website: plain HTML, CSS and JavaScript. No build step, no database.
+
+
+HOW TO VIEW IT
+--------------
+Open index.html in a web browser (Chrome, Safari, Edge or Firefox).
+An internet connection is needed, because the fonts and the smooth-scrolling
+library load from the web.
+
+One exception: the 3D object at the top of the About page only appears when the
+site is served from a web address (on hosting, or a local web server), not when
+the file is opened by double-clicking. Everything else works either way.
+
+
+HOW TO PUT IT ONLINE
+--------------------
+Upload the whole folder, as it is, to any static host — for example Netlify,
+Vercel, Cloudflare Pages, GitHub Pages, or regular web hosting. index.html is
+the homepage. Keep the folder structure unchanged so the links keep working.
+
+
+WHAT'S INSIDE
+-------------
+index.html          Homepage
+about.html          About
+works.html          Works (all projects)
+work/               8 project case studies
+service/            4 service pages
+blog.html           Blog
+blog/               6 articles
+contact.html        Contact
+css/                Styles
+js/                 Scripts (smooth scroll, menus, animations)
+assets/             Images, logo and showreel video
+
+
+BEFORE GOING LIVE
+-----------------
+The contact form is a design only: it is not connected to an inbox yet. Hook it
+up to a form service (for example Formspree or Netlify Forms) or to your own
+backend so messages are delivered.

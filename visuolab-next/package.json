@@ -1,0 +1,43 @@
+{
+  "name": "visuolab-next",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "vite dev --port 3001",
+    "build": "vite build",
+    "preview": "vite build && wrangler dev --config dist/server/wrangler.json",
+    "deploy": "vinext-cloudflare deploy --config dist/server/wrangler.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "check": "npm run typecheck && npm run lint && npm run build",
+    "cf-typegen": "wrangler types",
+    "db:migration:new": "wrangler d1 migrations create visuolab",
+    "db:migrate:local": "wrangler d1 migrations apply visuolab --local",
+    "db:migrate:remote": "wrangler d1 migrations apply visuolab --remote",
+    "db:list:local": "wrangler d1 migrations list visuolab --local",
+    "hash-password": "node scripts/hash-password.mjs"
+  },
+  "dependencies": {
+    "@vinext/cloudflare": "^1.0.1",
+    "next": "^16.3.8",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "react-server-dom-webpack": "^19.3.0",
+    "vinext": "^1.0.1"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.62.5",
+    "@types/node": "^26.6.4",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "@vitejs/plugin-rsc": "^0.5.35",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^16.3.8",
+    "typescript": "^6.0.3",
+    "vite": "^8.3.2",
+    "wrangler": "^4.147.0"
+  },
+  "type": "module"
+}

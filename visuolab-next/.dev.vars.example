@@ -1,0 +1,5 @@
+# Copy to .dev.vars for local development. Worker runtime secrets (production: `wrangler secret put <NAME>`).
+SESSION_SECRET=
+ADMIN_PASSWORD_HASH=
+RESEND_API_KEY=
+TURNSTILE_SECRET=

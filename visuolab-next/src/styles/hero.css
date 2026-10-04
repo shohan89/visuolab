@@ -1,0 +1,193 @@
+/* ==========================================================================
+   Scroll-hands homepage banner
+   Scoped to .scroll-sequence — does not touch the host page's body/fonts.
+
+   Tunable custom properties (set them on .scroll-sequence or :root):
+     --banner-top      space reserved for a fixed/overlaid nav (default 0px)
+     --banner-bg       banner background (dark navy radial by default)
+     --banner-accent   warm accent used for the highlighted word + primary CTA
+   ========================================================================== */
+
+.scroll-sequence{
+  --banner-top:0px;
+  --banner-accent:#ffb86b;
+  --banner-accent-deep:#ff8a3d;
+  --banner-ink:#f6f7ff;
+  --banner-muted:#aab6d6;
+  --banner-bg:linear-gradient(180deg,#020414 0%,#03071c 45%,#071033 80%,#0a1743 100%);
+  position:relative;
+  height:280svh;                 /* scroll distance that drives the animation */
+  color:var(--banner-ink);
+  box-sizing:border-box;
+}
+.scroll-sequence *,.scroll-sequence *::before,.scroll-sequence *::after{box-sizing:border-box}
+
+/* ---- pinned stage ------------------------------------------------------- */
+.scroll-sequence>.banner{
+  --mx:0;--my:0;--float:0px;
+  --reach:0;--pulse:0;--ripple:0;--ripple-opacity:0;
+  position:sticky;top:0;
+  height:100svh;min-height:520px;
+  display:flex;flex-direction:column;align-items:center;justify-content:flex-end;
+  padding:var(--banner-top) 0 min(100px,14vh);   /* 100px of air under the CTAs, eased down on short screens */
+  overflow:hidden;isolation:isolate;
+  background:var(--banner-bg);
+  touch-action:pan-y;
+}
+
+/* ---- mesh flow: a warped gradient field (js/mesh.js draws it in WebGL) --- */
+.scroll-sequence .mesh{
+  position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden;
+  transform:translate(calc(var(--mx)*-8px),calc(var(--my)*-6px));
+  /* die out before the banner's bottom edge, so the glow doesn't cut off in a
+     straight line where the next section starts */
+  -webkit-mask-image:linear-gradient(180deg,#000 0%,#000 42%,rgba(0,0,0,.62) 70%,rgba(0,0,0,.18) 88%,transparent 100%);
+  mask-image:linear-gradient(180deg,#000 0%,#000 42%,rgba(0,0,0,.62) 70%,rgba(0,0,0,.18) 88%,transparent 100%);
+}
+.scroll-sequence .mesh-canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+/* CSS stand-in until the shader is up, and wherever WebGL is unavailable */
+.scroll-sequence .mesh span{
+  position:absolute;display:block;width:62%;height:62%;border-radius:50%;
+  filter:blur(90px);mix-blend-mode:screen;opacity:.101;
+  animation:mesh-flow var(--d,30s) cubic-bezier(.45,0,.55,1) infinite alternate;
+}
+.scroll-sequence .mesh.has-gl span{display:none}
+.scroll-sequence .m1{left:2%;top:6%;--d:34s;background:radial-gradient(circle,rgba(38,92,255,.85),transparent 62%);--tx:14%;--ty:10%;--s:1.18}
+.scroll-sequence .m2{left:34%;top:-8%;--d:27s;animation-delay:-8s;background:radial-gradient(circle,rgba(96,160,255,.8),transparent 62%);--tx:-10%;--ty:14%;--s:1.1}
+.scroll-sequence .m3{right:0%;top:2%;--d:40s;animation-delay:-19s;background:radial-gradient(circle,rgba(56,38,199,.9),transparent 62%);--tx:-16%;--ty:12%;--s:1.22}
+.scroll-sequence .m4{left:16%;top:34%;--d:31s;animation-delay:-13s;background:radial-gradient(circle,rgba(64,170,255,.72),transparent 62%);--tx:18%;--ty:-12%;--s:1.14}
+.scroll-sequence .m5{right:14%;top:30%;--d:37s;animation-delay:-24s;background:radial-gradient(circle,rgba(122,104,255,.75),transparent 62%);--tx:-14%;--ty:-10%;--s:1.16}
+@keyframes mesh-flow{
+  0%  {transform:translate(0,0) scale(1)}
+  50% {transform:translate(var(--tx),var(--ty)) scale(var(--s))}
+  100%{transform:translate(calc(var(--tx)*-.6),calc(var(--ty)*-.8)) scale(1.04)}
+}
+
+/* ---- star field --------------------------------------------------------- */
+.scroll-sequence .stars{
+  position:absolute;inset:-30px;z-index:0;pointer-events:none;
+  transform:translate(calc(var(--mx)*-7px),calc(var(--my)*-5px));
+  -webkit-mask-image:linear-gradient(180deg,#000 0%,#000 58%,rgba(0,0,0,.4) 84%,transparent 99%);
+  mask-image:linear-gradient(180deg,#000 0%,#000 58%,rgba(0,0,0,.4) 84%,transparent 99%);
+}
+.scroll-sequence .stars i{
+  position:absolute;border-radius:50%;background:#dce7ff;box-shadow:0 0 var(--g,4px) #81acff;
+  opacity:var(--o,.4);
+  animation:sh-twinkle var(--dur,4s) ease-in-out infinite;   /* each star blinks on its own clock */
+}
+@keyframes sh-twinkle{
+  0%,62%,100%{opacity:var(--o,.4);transform:scale(1);box-shadow:0 0 var(--g,4px) #81acff}
+  70%{opacity:calc(var(--o,.4)*.55)}
+  76%{opacity:min(1,calc(var(--o,.4) + .35));transform:scale(1.3);box-shadow:0 0 calc(var(--g,4px)*1.5) #c8dcff,0 0 calc(var(--g,4px)*2.5) #81acff}   /* a soft blink */
+  82%{opacity:calc(var(--o,.4)*.55)}
+  90%{opacity:var(--o,.4);transform:scale(1)}
+}
+
+/* ---- scene: orb + two hands --------------------------------------------- */
+.scroll-sequence .stage{
+  flex:1 1 auto;min-height:0;width:100%;
+  display:flex;align-items:center;justify-content:center;
+}
+.scroll-sequence .scene{
+  /* wide enough for the arms to bleed off-screen, short enough to leave room for copy */
+  --scene-w:min(1800px,118vw,calc(190vh - 400px));
+  flex:none;position:relative;
+  width:var(--scene-w);aspect-ratio:100/30;
+  perspective:1100px;
+  transform:translate(calc(var(--mx)*16px),calc(var(--my)*10px + var(--float)));
+  will-change:transform;
+}
+.scroll-sequence .orb-layer{
+  position:absolute;width:20%;left:40%;top:8.7%;z-index:1;
+  transform:translate(calc(var(--mx)*-8px),calc(var(--my)*-5px)) scale(calc(1 + var(--pulse)*.18));
+  /* no will-change here: the globe re-rasterises at its true scale instead of being upsampled from a cached layer */
+}
+.scroll-sequence .orb{
+  display:block;width:100%;height:auto;
+  /* the globe is opaque, so no screen blend; its atmosphere carries the glow */
+  transform:rotate(calc(var(--pulse)*12deg));
+  filter:brightness(calc(1 + var(--pulse)*.45)) saturate(calc(1 + var(--pulse)*.25)) drop-shadow(0 0 calc(4px + var(--pulse)*50px) rgba(96,168,255,.55));
+}
+.scroll-sequence .contact-wave{
+  position:absolute;inset:8%;border:2px solid #9fd6ff;border-radius:50%;
+  box-shadow:0 0 26px #4fb2ff,0 0 60px rgba(60,150,255,.45),inset 0 0 26px #6fc3ff;
+  transform:scale(calc(1 + var(--ripple)*1.15));opacity:var(--ripple-opacity);
+  pointer-events:none;
+}
+.scroll-sequence .reach-hand{position:absolute;width:50%;top:-12.5%;z-index:2;will-change:transform}
+.scroll-sequence .reach-hand img{
+  display:block;width:100%;height:auto;pointer-events:none;user-select:none;
+}
+.scroll-sequence .reach-left{
+  left:0;transform-origin:100% 38%;
+  transform:translateX(calc(-4% + var(--reach)*9.1%));
+  -webkit-mask-image:linear-gradient(to right,transparent,#000 12%);mask-image:linear-gradient(to right,transparent,#000 12%);
+}
+.scroll-sequence .reach-right{
+  right:0;transform-origin:0% 38%;
+  transform:translateX(calc(4% - var(--reach)*9.1%));
+  -webkit-mask-image:linear-gradient(to left,transparent,#000 12%);mask-image:linear-gradient(to left,transparent,#000 12%);
+}
+
+/* ---- copy (restyled for the agency register) ------------------------- */
+.scroll-sequence .copy{
+  position:relative;z-index:3;flex:none;
+  display:flex;flex-direction:column;align-items:center;text-align:center;
+  width:min(1320px,94vw);padding:0 16px;margin-top:calc(clamp(-48px,-4vh,-12px) - 80px);   /* wide enough to hold the headline on two lines */
+}
+.scroll-sequence .eyebrow{
+  margin:0 0 clamp(12px,1.8vh,18px);
+  font-size:14px;font-weight:500;letter-spacing:.02em;color:#8f93a8;
+}
+.scroll-sequence .title{
+  margin:0;font-size:clamp(40px,min(5.3vw,7.2vh),84px);line-height:1.04;letter-spacing:-.035em;font-weight:500;
+  text-wrap:balance;color:#f4f5ff;
+}
+.scroll-sequence .title em{
+  font-family:var(--serif,Georgia,serif);font-style:italic;font-weight:400;letter-spacing:-.01em;font-size:1.1em;line-height:.9;
+  display:inline-block;padding:.02em .26em .06em;margin:0 .02em;border-radius:.45em;
+  background:rgba(255,255,255,.07);
+  /* the tint warms with the orb when the fingertips meet */
+  box-shadow:0 0 calc(var(--pulse)*28px) rgba(255,184,107,calc(var(--pulse)*.55));
+  color:color-mix(in oklab,#f4f5ff calc(100% - var(--pulse)*100%),#ffd9a8);
+}
+.scroll-sequence .title .nb{white-space:nowrap}
+.scroll-sequence .facts{
+  display:flex;flex-wrap:wrap;justify-content:center;gap:10px 40px;
+  margin:clamp(14px,2.2vh,22px) 0 0;padding:0;list-style:none;
+  font-size:14px;line-height:1.5;color:#aeb2c6;text-align:left;max-width:760px;
+}
+.scroll-sequence .facts li{display:flex;gap:10px;max-width:34ch}
+.scroll-sequence .facts li::before{content:"{/}";font-family:ui-monospace,Menlo,monospace;font-size:12px;color:#6d7290;line-height:1.7;flex:none}
+.scroll-sequence .actions{display:flex;flex-wrap:wrap;align-items:center;gap:12px 22px;justify-content:center;margin-top:clamp(32px,4.6vh,48px)}
+
+/* ---- small screens ------------------------------------------------------ */
+@media (max-width:600px){
+  .scroll-sequence>.banner{min-height:0}
+  .scroll-sequence .scene{--scene-w:155vw;aspect-ratio:100/31}
+  .scroll-sequence .orb-layer{top:9.7%}
+  .scroll-sequence .reach-hand{top:-10.6%}
+  .scroll-sequence .reach-left,.scroll-sequence .reach-right{-webkit-mask-image:none;mask-image:none}
+  .scroll-sequence .copy{width:100%;padding:0 20px}
+  .scroll-sequence .title .nb{white-space:nowrap}
+.scroll-sequence .facts{display:none}
+}
+@media (max-height:640px){
+  .scroll-sequence .title .nb{white-space:nowrap}
+.scroll-sequence .facts{display:none}
+}
+
+/* ---- reduced motion: no pin, no parallax, static pose ------------------- */
+@media (prefers-reduced-motion:reduce){
+  .scroll-sequence{height:auto}
+  .scroll-sequence>.banner{position:relative;height:100svh}
+  .scroll-sequence .stars i,.scroll-sequence .mesh span{animation:none}
+  .scroll-sequence .scene{transform:none}
+  .scroll-sequence .contact-wave{display:none}
+  
+}
+
+/* ---- load-in for the hero copy ------------------------------------------ */
+.scroll-sequence .reveal-load{opacity:0;transform:translateY(22px);transition:opacity 1s cubic-bezier(.16,1,.3,1),transform 1s cubic-bezier(.16,1,.3,1);transition-delay:calc(.25s + var(--i,0)*.11s)}
+body.loaded .scroll-sequence .reveal-load{opacity:1;transform:none}
+@media (prefers-reduced-motion:reduce){.scroll-sequence .reveal-load{opacity:1;transform:none;transition:none}}
