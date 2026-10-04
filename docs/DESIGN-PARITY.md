@@ -1,6 +1,6 @@
 # Visuolab — Design Parity Report
 
-Scope of this migration step: the visual system (CSS, fonts, assets), every JavaScript behavior, the shared chrome (nav, mega menu, mobile menu, footer, CTA band), and two full pages used as the parity test bed: **Home (`/`)** and **About (`/about`)**. The other 21 pages are not migrated yet (section 8).
+Migrated so far: the visual system (CSS, fonts, assets), every JavaScript behavior, the shared chrome (nav, mega menu, mobile menu, footer, CTA band), and these pages: **Home (`/`)**, **About (`/about`)**, **`/services`** (redirect, see 6.13) and the four service pages **`/services/brand-identity`, `/services/product-design`, `/services/web-design-build`, `/services/motion-3d`**, plus **`/works`** and the eight case studies **`/works/{orbit,marlow,kite,verdant,halcyon,northwind,aster,fold}`**, plus **`/blog`** and the six articles **`/blog/{design-systems-that-survive,designing-for-trust-in-fintech,motion-that-earns-its-place,the-brief-that-writes-itself,webflow-or-next-js,what-a-rebrand-actually-costs}`** (all from static seed data). Finally **`/contact`** with a working form (section 5.10 and `CONTACT-FORM.md`). Every page of the original site is now migrated.
 
 Reference: `referance-website/` (unchanged). New app: `visuolab-next/`.
 
@@ -9,10 +9,10 @@ Reference: `referance-website/` (unchanged). New app: `visuolab-next/`.
 | Area | Result |
 |---|---|
 | CSS | The six original files are copied **byte-for-byte** (checked with `cmp`). No class was renamed, no rule edited. |
-| Pixel comparison, full page, 3 widths (1440 / 900 / 390), animations frozen | Home: **0 differing pixels** at all widths, dev and production build. About: **0 differing pixels** in dev; 0.03–0.06 % in the production build, all inside the About slider captions (section 6.1). |
+| Pixel comparison, full page, animations frozen | Home, About, the four service pages, `/works`, the eight case studies, `/blog`, the six articles and `/contact`: **0 differing pixels** at 1920, 1440, 1280, 1024, 900, 768, 390 and 360 px, in `vite dev` and in the production build (sections 5.7 to 5.10). |
 | Behavior comparison (motion on) | Same results as the original for every behavior listed in section 4, measured side by side (section 5). |
 | Console | No errors or warnings on Home or About in the production build. |
-| Known differences | 12, all listed in section 6. None changes layout, spacing, type or color. |
+| Known differences | 28, all listed in section 6. None changes layout, spacing, type or color. |
 | Unresolved | 5, listed in section 7. |
 
 How it was measured: Playwright (Chromium) screenshots of the original (served from `referance-website/` over HTTP) and the new app at the same viewport, `prefers-reduced-motion: reduce`, with CSS animations/transitions frozen, the showreel video, WebGL canvases and the live clock text hidden in both (they change over time), then compared with `pixelmatch` (threshold 0.1). Page heights matched exactly in every run.
@@ -61,8 +61,13 @@ Only components that existed in the original design. No new visual component was
 | Component | Replaces | Kind |
 |---|---|---|
 | `Nav`, `Brand`, `MobileNav` (+ `content/nav.tsx`) | header markup in every page; mobile menu built by script | client (nav state, menu) |
-| `Footer` (variants `default`, `home`, `about`), `CtaBand`, `ShellFooter` | footer and CTA band (CTA omitted on `/contact`, as in the original) | client wrapper picks the variant from the route |
+| `Footer` (variants `default`, `home`, `about`, `works`), `CtaBand`, `ShellFooter` | footer and CTA band (CTA omitted on `/contact`, as in the original) | client wrapper picks the variant from the route |
 | `Pill` | the `.pill` CTA button with its double-arrow badge | server |
+| `WorksPage`, `WorksFilters`, `WorksGrid` (+ `Filter` context) | works index: heading, discipline chips, case cards | server page; chips and grid are client |
+| `CaseStudyPage` (+ `CasePanel`, `Stairs` with deliverables, `ReviewsSection`) | the eight case study pages, one layout, fed by the typed `CaseStudy` model | server; `Stairs` is client |
+| `ContactSection`, `ContactForm` (+ `Link`, the site-wide link) | contact page and its form (now a working form); `Link` is `next/link` with prefetch off | server page; the form is client |
+| `BlogListing`, `BlogCard`, `BlogGrid`, `BlogArticle` (+ `ArticleToc`, `ShareRail`, `FilterChips`) | blog index with featured article and topic filter; the six article pages | server; table of contents, copy button and the grid are client |
+| `ServicePage` (+ `ServiceReviews`, `CasePanel`, `Stairs`, `LogoMarquee`, `Aurora`, `Rich`, `SvgIcon`) | one layout for the four service pages, fed by seed data | server; `Stairs` is client |
 | `HomeHero`, `HomeIntroRun`, `HomeServices`, `HomeWorkRun`, `HomeReviews` | home sections | server |
 | `AboutHeroRun`, `AboutPrinciples`, `AboutMission`, `AboutStory`, `AboutManifesto`, `AboutPlaces`, `AboutFaqRun` | About sections | server |
 | `SiteMotion` | Lenis, anchors, load-in, reveal in `main.js` | client |
@@ -168,6 +173,76 @@ Nav (`header.nav`), CTA band (`section.cta`) and footer (`footer.footer`) were s
 
 Shell pieces and where they live: `Nav` / `MegaMenu` markup / `MobileNav` / `Brand` (logo) / `Pill` (CTA button) in `components/site/chrome` and `components/site/ui`; `ShellFooter` (CTA band + footer, route-aware) and `StyleGate` in the root layout; global typography, spacing and container system are the original classes in `base.css` (`.wrap`, `.h1`–`.h3`, `.lead`, `.label`, `.sec`, `.rhythm`). The original has no page transitions (no view-transition CSS, no transition script), so none exist.
 
+### 5.6 Homepage acceptance run
+
+Full-page pixel diff of `/` against `index.html` (animations frozen): **0 differing pixels at 1920, 1440, 1280, 1024, 900, 768, 390 and 360 px**, identical page heights each time (12008, 11718, 11502, 12252, 14194, 14288, 14857, 14999).
+
+Hover and open states on Home (viewport screenshots, 0 differing pixels each): Why-list link, services row, Book-a-call pill, case panel (also at 900 px), "View all projects" pill, industry card, process CTA, carousel round button, review card, closing CTA pill and arrow link, footer link, award badge card, social icon, hero pill and hero arrow link.
+
+Links: the 80 `<a href>` on Home map one-to-one to the original (0 mismatches after the `.html` → clean URL mapping); anchors `#contact`, `#work`, `#top`, `#process`, `#reviews` all have targets; `mailto:hello@visuolab.studio` unchanged. Internal targets that exist today: `/` and `/about` (200). **Not built yet (404): `/works`, `/blog`, `/contact`, `/services/{brand-identity,product-design,web-design-build,motion-3d}`, `/works/{orbit,marlow,kite,verdant}`.** The destinations are the correct ones; the pages arrive in the next steps.
+
+Console and assets, desktop 1440, tablet 820 and mobile 390, after scrolling the whole page with the wheel: no console errors or warnings, no failed requests, 29/29 images loaded, fonts Inter Tight, Instrument Serif and DM Sans loaded (DM Sans is only used by the desktop nav, so it does not load below the nav breakpoint in either version), no horizontal scroll, same reveal counts as the original, showreel video `muted loop autoplay playsinline preload=metadata` ready (`readyState 4`, no error). The poster attribute is `/assets/showreel-poster.jpg` instead of `assets/showreel-poster.jpg`; same file.
+
+### 5.7 About and service pages
+
+Seed data: `src/content/services.ts` (extracted from `service/*.html` by a one-off script), plus `reviews.ts` and `logos.ts`; types in `content/types.ts`. Inline markup in seed text is limited to `<em>`, rendered by `Rich` (no HTML is injected). The four pages share one `ServicePage` component; it was accepted only because the output is pixel-identical (below).
+
+Full-page pixel diff against the original (animations frozen, page scrolled first so lazy images are loaded):
+
+| Page | 1920 | 1440 | 1280 | 1024 | 900 | 768 | 390 | 360 |
+|---|---|---|---|---|---|---|---|---|
+| About | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| Brand identity | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| Product design | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| Web design & build | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| Motion & 3D | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+
+(Differing pixels; page heights identical every time, for example Brand identity 8960 / 8839 / 8729 / 9135 / 10483 / 10816 / 12081 / 12284.) The production build (`wrangler dev` preview) was compared for About, Home and the service pages at 1440, 900 and 390 px: 0 differing pixels.
+
+Interactive states on a service page (0 differing pixels each): hero pill hover, hero image pair hover, included-card hover, process step hover, process step opened (Brand identity and Motion & 3D), case panel hover, case stack mid-transition, review card hover, carousel button hover, mobile menu open (390 px), and the process steps at 900 px.
+
+Behavior, original against new, Brand identity and Motion & 3D: same title and meta description; same hidden sections (`prob-sec`, `band-sec`); same reveal counts (39 of 46); case panel `--p` values equal; process steps open one at a time, close on the second click, on Escape and on an outside click, with identical `aria-expanded` sequences (`0000 > 0100 > 0010 > 0000 > 1000 > 0000 > 0001 > 0000`); the carousel moves; 55 of 55 links map one-to-one to the original targets; 26 of 26 images, loaded; no console errors and no failed requests.
+
+Routes: `/services/{slug}` returns 200 for the four slugs and 404 for any other; `/services` redirects (308) to `/#services`; `/service/<slug>.html` redirects (308) to `/services/<slug>`.
+
+### 5.8 Works index and case studies
+
+**Data model.** `CaseStudy` in `src/content/types.ts` (typed: card, hero facts, cover, about and stats, two galleries, process steps with deliverables, challenges, wide image, results, more work). The eight records and the card order of `/works` live in `src/content/cases.ts`, extracted from `work/*.html` and `works.html` by a one-off script. Nothing is in the database. All eight pages have the same structure and differ only in content, so one `CaseStudyPage` renders every record; this was accepted only because the output is pixel-identical (below). Inline markup in text is limited to `<em>` and `<b>` (rendered by `Rich`, no HTML injection).
+
+**Pixel diff, full page, animations frozen, page scrolled first:** `/works` and the eight case studies at 1920, 1440, 1280, 1024, 900, 768, 390 and 360 px: 72 comparisons, **0 differing pixels** after discounting three runs that showed 769–6,700 pixels (0.01–0.06 %) while the machine was busy; each of those three was repeated twice and was 0 both times (lazy images not yet decoded). Page heights identical every time (for example Works 5326 at 1440; Orbit 7660 at 1440 and 11235 at 390). Production build (`wrangler dev` preview), all nine pages at 1440 and 390: 18 of 18 comparisons are 0.
+
+**Interaction states, 0 differing pixels each (viewport screenshots):** Works chip hover; filter Brand; filter Motion then scrolled; filter Packaging then All; card hover (second and last card); carousel button hover; Web filter at 390 px; Product filter at 900 px; case process note opened with its deliverables (Orbit, Kite); process step hover; gallery figure hover; "more work" card and "All projects" pill hover; mobile menu at 390 px. (At 900 px the process "+" buttons are `display:none` in both versions and every note is shown, so there is nothing to click there.)
+
+**Behavior, original against new:** Works: chip counts All 8 / Brand 3 / Product 3 / Web 4 / Packaging 2 / Motion 5 are computed from the data and match; each filter shows the same cards (brand 3, product 3, web 4, packaging 2, motion 5, all 8), the active chip carries `.is-on` and `aria-pressed`, shown cards carry `.in`, the empty message stays hidden; the carousel moves. Case studies: process notes open one at a time, close on a second click, Escape and an outside click, with the same `aria-expanded` sequences; the same 2 / 2 / 1 / 1 deliverables per phase; same titles, meta descriptions and reveal counts; 55 of 55 links per case page and 58 of 58 on Works map one-to-one to the original targets (the two exceptions are footer links on Works, 6.17); no console errors, no failed requests, no broken images.
+
+**Assets.** The 8 case images used by the data are byte-identical to the originals (SHA-256) and are served with 200 and the right content type; every file of `referance-website/assets` also exists in `visuolab-next/public/assets`. The images referenced by the pages (card, cover, gallery crops via `object-position`, wide image, "more work" thumbnails, review avatars, CTA floaters) loaded on every page.
+
+Routes: `/works` and the eight `/works/{slug}` return 200, any other slug 404; `/work/<slug>.html` and `/works.html` redirect (308).
+
+### 5.9 Blog and articles
+
+**Data model.** `BlogPost` in `src/content/types.ts`: slug, meta, category, title, ISO publish date, read minutes, author, cover, optional excerpt (featured article only), lead paragraph, body as typed blocks (`heading` / `paragraph`), the closing outro line with its link, and the two related slugs. The six records, the order of `/blog` (first = featured, rest = grid) and the topic list live in `src/content/blog.ts`, extracted from `blog.html` and `blog/*.html` by a one-off script. Dates are stored as ISO and shown as "12 Sep 2026" by a fixed formatter. Heading ids and the table of contents are generated from the headings with the original script's rule. Nothing is in the database.
+
+**Pixel diff, full page, animations frozen:** `/blog` and the six articles at 1920, 1440, 1280, 1024, 900, 768, 390 and 360 px: 56 comparisons, **0 differing pixels**; page heights identical (for example Blog 3504 at 1440 and 5527 at 390). Production build (`wrangler dev` preview), all seven pages at 1440 and 390: 14 of 14 are 0. Interaction states, 0 differing pixels each: topic chip hover; Product filter; Web then All; featured card hover; grid card hover; Motion filter at 390 px; Brand filter at 900 px; table-of-contents link hover; share button hover; two scroll positions (scroll-spy highlight moving); "keep reading" card and "All articles" pill hover; nav switching to dark text over the light article; mobile menu at 390 px; article at 900 px.
+
+**Behavior, original against new (all seven pages):** topic chips show All 6 / Brand 1 / Product 2 / Web 1 / Motion 1 / Process 1 and each filter shows the same cards; the featured article is not part of the filtered grid (as in the original); the active chip carries `.is-on` and `aria-pressed`; shown cards carry `.in`. Articles: same table-of-contents entries and heading ids; scroll-spy highlights the same entry at five scroll positions; a table-of-contents click lands the heading at the same offset; share links (X, LinkedIn, Facebook) have the same labels, targets and `rel`; the copy button copies the article address, switches to the check icon (`.copied`) and back after 1.6 s, as before; the outro link scrolls to the contact section at the same offset; titles, meta descriptions and `lang` equal; 62 of 62 links per article map to the original targets (63 on one); no console errors, no failed requests, no broken images. One real difference was found and fixed during testing: the original copied the address captured at page load (no `#section`), and the first version copied `location.href` at click time, which included the section after a table-of-contents click.
+
+**Metadata (head only, no visual effect).** `pageMetadata()` in `src/lib/seo/metadata.ts` builds, for `/blog` and every article: `<title>`, description, canonical URL, Open Graph (`og:title`, `description`, `url`, `site_name`, `locale`, `type` = `website` or `article`, `image` with alt, and for articles `article:published_time` and `article:author`) and the Twitter card (`summary_large_image`). Titles and descriptions are the ones from the static pages. Canonical and Open Graph URLs are absolute: the root layout sets `metadataBase` from the `SITE_URL` variable (`lib/site.ts`), and the article share links and copied address use the same origin. Verified in the production build with `SITE_URL` overridden: canonical, `og:url`, `og:image` and the share link all follow it. Each article also carries a schema.org `BlogPosting` JSON-LD script (headline, description, image, date, section, author, publisher). **Before deploying, set `SITE_URL` in `wrangler.jsonc` to the real domain** (it is `http://localhost:3001` now). The other pages still use their original title and description only; `pageMetadata()` can be applied to them the same way.
+
+Routes: `/blog` and the six `/blog/{slug}` return 200, any other slug 404; `/blog.html` and `/blog/<slug>.html` redirect (308).
+
+### 5.10 Contact page and form
+
+The page was ported from `contact.html` (the section is generated from the original markup; only the `<form>` is a component). The form keeps the original markup and classes. Added to it, invisibly: a `maxlength` on the text inputs and an off-screen decoy field for bots (`position:absolute`, `aria-hidden`, not in the tab order; it takes no space in the grid layout).
+
+**Pixel diff, full page, animations frozen:** `/contact` at 1920, 1440, 1280, 1024, 900, 768, 390 and 360 px: 8 comparisons, **0 differing pixels**, identical heights (1803 / 1849 / 1892 / 1915 / 2532 / 3007 / 3738 / 3820).
+
+**Interaction states, original against new, 0 differing pixels each:** focus in the name field; option chip hover; two options checked; fully filled form; submit button hover; the invalid state after pressing Send on an empty form; **the success state** (after a real submission: `.form-ok` shown, note hidden, button disabled at 60 % opacity) at 1440, 900 and 390 px; the e-mail link hover. (One 390 px run showed 13 pixels once; it was 0 on two repeats.) When the visitor is rate limited the page shows the `.form-note` line with an error message instead of the success panel; the original has no such state, so it has nothing to compare against.
+
+**What changed in behavior** (original: "show success, send nothing"): the form now validates in the browser and on the server, checks spam and rate limits, stores the message in D1 and shows the same success panel. Full description, data model, privacy notes and the 58 test checks are in `CONTACT-FORM.md`. Native browser bubbles and the red `:user-invalid` border remain the field-error display; errors that belong to no field use the existing `.form-note` line.
+
+**Links, title, description, fields (original against new):** 50 of 50 links map one-to-one (the exception is the footer Careers link, known difference 24), same title and description, same form fields plus the decoy field, no console errors, no failed requests, no broken images.
+
 ## 6. Known differences
 
 None of these changes layout, spacing, typography or color.
@@ -184,18 +259,34 @@ None of these changes layout, spacing, typography or color.
 10. **The nav is one component for all pages** (the original had the same markup pasted 23 times). The mobile menu reads the same data instead of scraping the desktop DOM; the resulting DOM is identical (22 links, same classes).
 11. **Three.js scene is typed and disposes its resources.** Geometry, material parameters, lights and the animation loop are unchanged. The version is pinned to 0.170.0 because newer versions deprecate `THREE.Clock` (a console warning).
 12. **Fonts are still on the Google CDN** (same as the original), not self-hosted.
+13. **`/services` has no page of its own.** The original has no services overview (the nav item only opens the mega menu), so the route permanently redirects (308) to `/#services`. No new page was designed.
+14. **`svc-page` is a wrapper element, not a `<body>` class.** The shared layout owns `<body>` (it carries `rhythm`). The service rules (`.svc-page .sec`, `.svc-page .svc-hero`, `.svc-page .svc-band`, `--sec-gap`) are descendant selectors, so a wrapper around the page content gives the same cascade; `rhythm` and `svc-page` set the same 150 px gap. Pixel results above confirm it.
+15. **The footer brand shows the dark logo image on every page except Home**, as in the original (only the Home footer lacked it). It is hidden by CSS either way; `Footer` has a `darkLogo` flag per variant.
+17. **Works-page footer links.** The original works footer sends "Works" to the home page work section (`/#work`) and has a `#careers` link that points at an anchor which does not exist on that page. `Footer` has a `works` variant: "Works" keeps `/#work`, and Careers goes to `/about#careers` (the dead anchor was fixed, not copied).
+18. **Works filtering is React state.** The original script toggled classes on the cards; now the chip row and the grid share a small context. The same classes appear in the same situations (`.is-on`, `aria-pressed`, `.is-hidden`, `.in` on shown cards). Until a chip is used the grid does not touch the card classes, so the scroll reveal still adds `.in` itself.
+19. **Case data is typed, content is unchanged.** Case study text lives in `cases.ts` rather than in 8 HTML files; the rendered DOM is the same.
+20. **Blog footer: Careers link.** The original footer on the blog pages had a `#careers` link whose target does not exist there; it now goes to `/about#careers` (same as the other inner pages).
+21. **Blog filtering and the table of contents are React.** The grid shares the filter context with the chip row (same classes in the same situations); the table-of-contents links and heading ids are rendered by the server instead of built by script, and only the `.on` highlight is client state (same test as the original: heading top <= scroll + nav height + 40).
+22. **Share rail is server markup.** The X, LinkedIn and Facebook links are plain anchors rendered with the page (they work without JavaScript); only the copy button is a client component. The original script computed the address at load time; the new links use the canonical address built from `SITE_URL`, identical on the real domain.
+23. **Metadata additions.** Canonical, Open Graph, Twitter card and JSON-LD are new head tags (the original had only title and description). They change no pixel.
+24. **Contact footer.** As on the original, the contact page has no closing CTA band, and its footer "Contact" link goes to the home page's closing section (`/#contact`); the dead `#careers` anchor became `/about#careers` (a `contact` footer variant).
+25. **The contact form works.** In the original it only showed the success text. Now it validates, saves and can be rate limited (`CONTACT-FORM.md`). The only visible additions are the states the original could not show: a field message through the browser's own bubble for rules beyond `required`, and the `.form-note` line carrying an error message.
+26. **Decoy field and `maxlength`** inside the form (invisible; spam protection and input limits).
+27. **Link prefetching is off** (`components/site/ui/Link.tsx`). In the production build the router prefetched the page behind every visible link and, with it, browser preload hints for that page's images; every page logged "preloaded but not used" warnings and downloaded roughly 600 KB it did not need. The static site never prefetched. With it off, all eight page types log nothing.
+28. **Separate admin area.** `/admin` has its own root layout, stylesheet and `noindex`; it shares nothing with the public site's design.
+16. **CSS is not minified in production builds** (`build.cssMinify: false`). Vite 8's Lightning CSS minifier rewrote the `backdrop-filter` + `-webkit-backdrop-filter` pairs to the prefixed property only, which removed the blur on the About slider captions in Chromium (0.03–0.06 % pixel difference). The stylesheets are small; the original CSS now ships as written.
 
 ## 7. Unresolved
 
-1. **Dev server only: client-side navigation back to `/` fails** with `process is not defined` under `vite dev` (vinext). The same navigation works in the production build and in `wrangler dev` preview (section 5.3). Cause not found yet; to be isolated (candidate: a dev-mode dependency pre-bundle).
-2. **About page, production build: 0.03–0.06 % of pixels differ**, concentrated in the blurred (`backdrop-filter`) captions on the project slider. The same screenshots are identical in dev. Sub-pixel, no layout shift; origin undetermined.
-3. **`body` class for service pages.** The original uses `<body class="svc-page">` on the four service pages and `rhythm` elsewhere. The layout sets `rhythm` for every page. Service pages are not migrated yet; the class has to be set per route when they are.
+1. ~~Dev server only: client-side navigation failed with `process is not defined`~~ **Resolved.** vinext's dev runtime defines `window.process` and removes it after the first client navigation. `SiteMotion` now pins the property in dev only (`import.meta.env.DEV`), and Home → About → Home → `/about#careers` works in `vite dev` with no console issues. Production builds were never affected.
+2. ~~About page, production build: 0.03–0.06 % of pixels differ~~ **Resolved.** Cause: the CSS minifier dropped `backdrop-filter` (6.16). 0 differing pixels now.
+3. ~~`body` class for service pages~~ **Resolved** with a wrapper element (6.14).
 4. **Not pixel-compared:** WebGL output (mesh and 3D scene, only their presence, size and lifecycle were compared), the showreel video frame, and the live clock text (hidden in both, since it changes every second). Hover and open states are compared in section 5.4 only where listed (for example card hover on service pages is not covered because those pages are not migrated).
-5. **Pages not migrated yet (21):** `/works`, 8 case studies, 4 service pages, `/blog`, 6 articles, `/contact`. Links from Home, About, nav and footer to those routes currently lead to 404 pages. Their CSS sets are already defined in `css-sets.ts` but have not been compared against the originals.
+5. **Pages not migrated yet:** none. Every page of the original is migrated.
 
 ## 8. Next steps
 
 1. Isolate the dev-only navigation error (item 7.1).
 2. Port the remaining pages with the same converter and run the same pixel and behavior checks per page (the checks are scripted; the scripts live in the working directory of this step, not in the repo — move them into `visuolab-next/scripts/parity/` when the repo gets a test setup).
-3. Port the page-level behaviors that have no home yet: filter chips, TOC and share rail, stairs, contact form.
+3. Contact form: add Cloudflare Turnstile if the client wants a captcha-style check (needs a widget, so a design decision); add the notification email once the Resend key exists.
 4. Replace hard-coded copy with data (Phase 5/6 of `ARCHITECTURE.md`) once pixel parity is locked.

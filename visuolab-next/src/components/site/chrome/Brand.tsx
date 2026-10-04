@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/site/ui/Link";
 
 /** Logo link. Two images: the light-ground and dark-ground marks are swapped by CSS (.logo-l / .logo-d). */
 export default function Brand() {

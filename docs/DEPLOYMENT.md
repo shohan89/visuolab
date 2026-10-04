@@ -22,7 +22,7 @@ Verified on this machine (Node 24, npm 11, Windows):
 | `npm run lint` | passes |
 | `npm run dev` | serves `/` (200), original CSS files linked in original order, `/assets/*` static files, `/about.html` → `/about` (308), `/api/health` reports D1 and R2 `ok` |
 | `npm run build` | passes (client, RSC and SSR bundles) |
-| `npm run db:migrate:local` | applies `0000_app_meta.sql` |
+| `npm run db:migrate:local` | applies `0000`-`0008` (app meta, submissions, users and sessions, media, services and case studies, blog, settings/navigation/integrations/audit, `contact_submissions`) |
 | `npm run preview` | builds, starts the built Worker in local workerd on port 8787; `/`, `/api/health`, redirect and assets all respond correctly |
 | `vinext-cloudflare deploy --dry-run` | passes. **No production deploy has been run yet.** |
 
@@ -69,7 +69,11 @@ It must show the Visuolab account. If an older OAuth login for another account a
 | `npm run db:migrate:local` | Applies pending migrations to the local D1. |
 | `npm run db:migrate:remote` | Applies pending migrations to the **production** D1. |
 | `npm run db:list:local` | Lists migration status locally. |
-| `npm run hash-password` | Placeholder for the admin password hash. Still uses scrypt; to be switched to PBKDF2 (see `ARCHITECTURE.md` §0) before use. |
+| `npm run db:migrate:preview` | Applies migrations to the **preview** database. `npm run preview` runs it for you: the built Worker uses its own local D1 under `dist/server/.wrangler`, separate from the one `npm run dev` uses, and `vite build` clears it. |
+| `npm run db:seed:generate` | Rebuilds `db/seed/content.sql` from the typed content and the reference site. |
+| `npm run db:seed:local` / `:preview` / `:remote` | Loads the website content into that database. Do not re-run once editors use the admin. |
+| `npm run db:verify` / `db:verify:local` | Checks schema, seed, queries and constraints (see `DATABASE.md` §9). |
+| `npm run admin:create` | Creates or resets an admin user (`ADMIN_EMAIL`, `ADMIN_NAME`, `ADMIN_PASSWORD`; add `-- --preview` or `-- --remote`). |
 
 Drizzle (`drizzle-kit generate`) is planned for the schema phase. Until then migrations are plain SQL files created with `db:migration:new`.
 
@@ -105,7 +109,7 @@ visuolab-next/
 | `d1_databases` | `DB` → `visuolab` (`09818a92-a4b7-4ec1-a009-740b8e353402`) | `migrations_dir: "migrations"` |
 | `r2_buckets` | `MEDIA` → `visuolab-media` | |
 | `observability` | enabled | Workers Logs |
-| `vars` | `SITE_URL`, `ADMIN_EMAIL`, `MAIL_FROM`, `MAIL_TO` | Non-secret |
+| `vars` | `SITE_URL`, `MAIL_FROM`, `MAIL_TO` | Non-secret |
 
 **Before the first production deploy:** change `SITE_URL` from `http://localhost:3001` to the real origin.
 
@@ -114,9 +118,11 @@ visuolab-next/
 | Name | Type | Where it lives |
 |---|---|---|
 | `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` | CLI only | `.env` locally; CI secrets. Never read by the Worker. |
-| `SESSION_SECRET`, `ADMIN_PASSWORD_HASH`, `RESEND_API_KEY`, `TURNSTILE_SECRET` | Worker secrets | `.dev.vars` locally; `npx wrangler secret put <NAME>` in production |
-| `SITE_URL`, `ADMIN_EMAIL`, `MAIL_FROM`, `MAIL_TO` | Worker vars | `wrangler.jsonc` |
+| `SESSION_SECRET` (salt for visitor hashes; required in production), `RESEND_API_KEY` (optional until the key exists) | Worker secrets | `.dev.vars` locally; `npx wrangler secret put <NAME>` in production |
+| `SITE_URL`, `MAIL_FROM`, `MAIL_TO` | Worker vars | `wrangler.jsonc` |
 | Bindings `DB`, `MEDIA`, `ASSETS` | Bindings | `wrangler.jsonc` |
+
+Secrets are typed in `src/cloudflare-env.d.ts` (`wrangler types` does not know them). The contact form, rate limiting and the admin area are described in `CONTACT-FORM.md`; the remote database needs `npm run db:migrate:remote` before the first deploy of those features (not run yet).
 
 Read bindings in server code with `import { env } from "cloudflare:workers"` (see `src/app/api/health/route.ts`). No `NEXT_PUBLIC_` prefix for secrets.
 
@@ -150,8 +156,8 @@ npm run preview             # http://localhost:8787
 ### 8.1 One-time
 
 1. Confirm the account: `npx wrangler whoami`.
-2. Apply migrations to the remote D1: `npm run db:migrate:remote`.
-3. Set secrets (once they exist): `npx wrangler secret put SESSION_SECRET`, and likewise `ADMIN_PASSWORD_HASH`, `RESEND_API_KEY`, `TURNSTILE_SECRET`.
+2. Apply migrations to the remote D1: `npm run db:migrate:remote`, then `npm run db:seed:remote` (first time only) and `npm run admin:create -- --remote`.
+3. Set secrets (once they exist): `npx wrangler secret put SESSION_SECRET`, and likewise `RESEND_API_KEY`, `TURNSTILE_SECRET`.
 4. Set the final `SITE_URL` in `wrangler.jsonc`.
 5. Decide the hostname: the first deploy publishes at `https://visuolab-next.<account-subdomain>.workers.dev`. For a custom domain add a `routes` entry (`{ "pattern": "example.com", "custom_domain": true }`) to `wrangler.jsonc` once the domain is on the Cloudflare account.
 

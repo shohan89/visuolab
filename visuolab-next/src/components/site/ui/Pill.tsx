@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/site/ui/Link";
 import type { ReactNode } from "react";
 
 /** The double-arrow badge inside every .pill button (the first arrow slides out, the second slides in on hover). */

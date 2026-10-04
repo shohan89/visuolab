@@ -11,7 +11,7 @@ import Footer, { type FooterVariant } from "@/components/site/chrome/Footer";
  */
 export default function ShellFooter() {
   const path = usePathname().replace(/\/+$/, "") || "/";
-  const variant: FooterVariant = path === "/" ? "home" : path === "/about" ? "about" : "default";
+  const variant: FooterVariant = path === "/" ? "home" : path === "/about" ? "about" : path === "/works" ? "works" : path === "/contact" ? "contact" : "default";
   return (
     <>
       {path !== "/contact" && <CtaBand />}

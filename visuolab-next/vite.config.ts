@@ -3,6 +3,12 @@ import vinext from "vinext";
 import { cloudflare } from "@cloudflare/vite-plugin";
 
 export default defineConfig({
+  build: {
+    // Ship the original CSS as written. The default minifier (Lightning CSS) rewrote `backdrop-filter` +
+    // `-webkit-backdrop-filter` pairs to the prefixed property only, which removes the blur in Chromium
+    // (About slider captions, nav menus). The stylesheets are small, so exactness wins over bytes.
+    cssMinify: false,
+  },
   plugins: [
     vinext(),
     cloudflare({

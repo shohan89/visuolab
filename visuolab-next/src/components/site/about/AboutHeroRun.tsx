@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/site/ui/Link";
 import { st } from "@/lib/css";
 import AboutScene from "@/components/motion/AboutScene";
 

@@ -64,6 +64,18 @@ export default function SiteMotion({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  /* dev server only: vinext's dev runtime defines window.process for its client router and then removes it
+     after the first client-side navigation, so the next navigation threw "process is not defined".
+     Pinning the property (still writable, no longer deletable) keeps client navigation working in `vite dev`.
+     Production builds do not use window.process. */
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    const w = window as unknown as { process?: unknown };
+    if (w.process && Object.getOwnPropertyDescriptor(window, "process")?.configurable !== false) {
+      Object.defineProperty(window, "process", { value: w.process, writable: true, configurable: false, enumerable: true });
+    }
+  }, []);
+
   /* hero copy: staggered rise on load (body.loaded) */
   useEffect(() => {
     const id = requestAnimationFrame(() => requestAnimationFrame(() => document.body.classList.add("loaded")));

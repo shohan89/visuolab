@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/components/site/ui/Link";
 import { useEffect, useRef, useState } from "react";
 import { cta, mainLinks, promo, serviceCards, serviceGroups } from "@/content/nav";
 import { subscribeScroll } from "@/lib/motion/scroll";

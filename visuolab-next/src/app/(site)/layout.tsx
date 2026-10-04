@@ -1,10 +1,16 @@
-import type { Viewport } from "next";
+import type { Metadata, Viewport } from "next";
 import SiteMotion from "@/components/motion/SiteMotion";
 import ShellFooter from "@/components/site/ShellFooter";
 import StyleGate from "@/components/site/StyleGate";
 import Nav from "@/components/site/chrome/Nav";
+import { getSiteUrl } from "@/lib/site";
 
 export const viewport: Viewport = { width: "device-width", initialScale: 1 };
+
+/** metadataBase turns the relative canonical and Open Graph paths of every page into absolute URLs. */
+export async function generateMetadata(): Promise<Metadata> {
+  return { metadataBase: new URL(await getSiteUrl()) };
+}
 
 export default function SiteLayout({ children }: { children: React.ReactNode }) {
   return (

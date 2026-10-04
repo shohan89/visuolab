@@ -11,5 +11,5 @@
   ],
   "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "visuolab-media" }],
   "observability": { "enabled": true },
-  "vars": { "SITE_URL": "http://localhost:3001", "ADMIN_EMAIL": "visuolab@gmail.com", "MAIL_FROM": "Visuolab <onboarding@resend.dev>", "MAIL_TO": "visuolab@gmail.com" }
+  "vars": { "SITE_URL": "http://localhost:3001", "MAIL_FROM": "Visuolab <onboarding@resend.dev>", "MAIL_TO": "visuolab@gmail.com" }
 }
