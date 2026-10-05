@@ -71,6 +71,13 @@ async function guard() {
   return requireAdmin();
 }
 
+/** Where to go after an action: the page the form came from (only inside /admin), with a notice code the toast system shows. */
+function backTo(formData: FormData, notice: "status" | "deleted"): string {
+  const back = String(formData.get("back") ?? "");
+  const base = back.startsWith("/admin/") || back === "/admin" ? back : "/admin/submissions";
+  return `${base}${base.includes("?") ? "&" : "?"}n=${notice}`;
+}
+
 export async function changeStatus(formData: FormData): Promise<void> {
   const admin = await guard();
   const id = String(formData.get("id") ?? "");
@@ -78,7 +85,7 @@ export async function changeStatus(formData: FormData): Promise<void> {
   if (!/^[0-9a-f-]{36}$/.test(id) || !STATUSES.includes(status)) return;
   await setSubmissionStatus(id, status);
   await audit({ action: "submission.status", userId: admin.id, userEmail: admin.email, entityType: "contact_submission", entityId: id, summary: `Status set to ${status}` });
-  redirect(String(formData.get("back") ?? "/admin/submissions").startsWith("/admin/") ? String(formData.get("back")) : "/admin/submissions");
+  redirect(backTo(formData, "status"));
 }
 
 export async function removeSubmission(formData: FormData): Promise<void> {
@@ -87,5 +94,5 @@ export async function removeSubmission(formData: FormData): Promise<void> {
   if (!/^[0-9a-f-]{36}$/.test(id)) return;
   await deleteSubmission(id);
   await audit({ action: "submission.delete", userId: admin.id, userEmail: admin.email, entityType: "contact_submission", entityId: id, summary: "Submission deleted" });
-  redirect(String(formData.get("back") ?? "/admin/submissions").startsWith("/admin/") ? String(formData.get("back")) : "/admin/submissions");
+  redirect(backTo(formData, "deleted"));
 }

@@ -61,7 +61,7 @@ if (!readOnly) {
 const WANTED = ["users", "sessions", "services", "case_studies", "case_study_images", "blog_posts", "blog_categories", "blog_tags", "blog_post_tags", "contact_submissions", "media", "site_settings", "navigation_items", "integrations", "audit_logs"];
 const tables = q("SELECT name FROM sqlite_master WHERE type = 'table'").map((t) => t.name);
 check("all 15 requested tables exist", WANTED.every((t) => tables.includes(t)), WANTED.filter((t) => !tables.includes(t)).join(",") || "ok");
-check("extra tables are only the join tables and helpers", tables.filter((t) => !WANTED.includes(t) && !/^(sqlite_|_cf_|d1_migrations)/.test(t)).sort().join(",") === "app_meta,rate_limits,service_case_studies", tables.filter((t) => !WANTED.includes(t) && !/^(sqlite_|_cf_|d1_migrations)/.test(t)).sort().join(","));
+check("extra tables are only the join tables and helpers", tables.filter((t) => !WANTED.includes(t) && !/^(sqlite_|_cf_|d1_migrations)/.test(t)).sort().join(",") === "app_meta,rate_limits,service_case_studies,slug_redirects", tables.filter((t) => !WANTED.includes(t) && !/^(sqlite_|_cf_|d1_migrations)/.test(t)).sort().join(","));
 const cols = (t) => q(`PRAGMA table_info("${t}")`).map((c) => c.name);
 for (const t of ["services", "case_studies", "blog_posts", "blog_categories", "blog_tags", "media"]) {
   const need = ["id", "slug", "title", "status", "created_at", "updated_at", "published_at"];
@@ -198,6 +198,11 @@ if (!readOnly) {
   rejects("a category with articles cannot be deleted", "DELETE FROM blog_categories WHERE id = 'cat_brand'", /FOREIGN KEY/);
   rejects("an r2 media row needs an r2 key", `INSERT INTO media (id, slug, title, kind, mime, storage, url, created_at, updated_at) VALUES ('m3', 'r2-no-key', 'x', 'image', 'image/png', 'r2', '/media/x', ${NOW}, ${NOW})`, /CHECK/);
   rejects("a menu position holds one item, including top-level ones", `INSERT INTO navigation_items (id, menu, position, label, href, created_at, updated_at) VALUES ('n2', 'primary', 0, 'dup', '/x', ${NOW}, ${NOW})`, /UNIQUE/);
+  db.exec("INSERT INTO slug_redirects (id, kind, old_slug, new_slug, created_at) VALUES ('r1', 'service', 'old-name', 'brand-identity', '2026-10-04T00:00:00.000Z')");
+  rejects("an old address can redirect only once per kind", "INSERT INTO slug_redirects (id, kind, old_slug, new_slug, created_at) VALUES ('r2', 'service', 'old-name', 'motion-3d', '2026-10-04T00:00:00.000Z')", /UNIQUE/);
+  rejects("a redirect cannot point at itself", "INSERT INTO slug_redirects (id, kind, old_slug, new_slug, created_at) VALUES ('r3', 'service', 'same', 'same', '2026-10-04T00:00:00.000Z')", /CHECK/);
+  rejects("a redirect needs a known kind", "INSERT INTO slug_redirects (id, kind, old_slug, new_slug, created_at) VALUES ('r4', 'page', 'a', 'b', '2026-10-04T00:00:00.000Z')", /CHECK/);
+  db.exec("DELETE FROM slug_redirects");
   rejects("a menu name outside the list is refused", `INSERT INTO navigation_items (id, menu, position, label, created_at, updated_at) VALUES ('n3', 'sidebar', 9, 'x', ${NOW}, ${NOW})`, /CHECK/);
   rejects("a contact message status outside the list is refused", `INSERT INTO contact_submissions (id, name, email, message, status, created_at, updated_at) VALUES ('c1', 'a', 'a@b.c', 'm', 'maybe', ${NOW}, ${NOW})`, /CHECK/);
   rejects("a user role outside admin/editor is refused", `INSERT INTO users (id, email, name, password_hash, role, created_at, updated_at) VALUES ('u3', 'r@x.com', 'a', 'h', 'owner', ${NOW}, ${NOW})`, /CHECK/);

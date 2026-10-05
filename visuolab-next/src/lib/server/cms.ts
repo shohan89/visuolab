@@ -58,14 +58,15 @@ export async function getCaseStudies(db: Db, opts: { publishedOnly?: boolean } =
   });
 }
 
-export async function getServices(db: Db, opts: { publishedOnly?: boolean } = {}): Promise<ServiceSeed[]> {
+export async function getServices(db: Db, opts: { publishedOnly?: boolean; slug?: string } = {}): Promise<ServiceSeed[]> {
   const media = await mediaUrls(db);
-  const where = opts.publishedOnly ? `WHERE ${STATUS}` : "";
-  const services = await all(db, `SELECT * FROM services ${where} ORDER BY position, slug`);
+  const conds = [...(opts.publishedOnly ? [STATUS] : []), ...(opts.slug ? ["slug = ?1"] : [])];
+  const where = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
+  const services = await all(db, `SELECT * FROM services ${where} ORDER BY position, slug`, ...(opts.slug ? [opts.slug] : []));
   const links = await all(
     db,
     `SELECT l.service_id, l.position, c.slug, c.card_image_id, c.card_image_alt, c.card_tags_json, c.showcase_json
-       FROM service_case_studies l JOIN case_studies c ON c.id = l.case_study_id ORDER BY l.service_id, l.position`,
+       FROM service_case_studies l JOIN case_studies c ON c.id = l.case_study_id ${opts.publishedOnly ? "WHERE c.status = 'published'" : ""} ORDER BY l.service_id, l.position`,
   );
   return services.map((v) => {
     const shots = parse<{ alt: string; width?: number; height?: number; priority?: boolean; lazy?: boolean }[]>(v.hero_shots_json);
@@ -172,4 +173,16 @@ export async function contentCounts(db: Db): Promise<Record<string, number>> {
   const out: Record<string, number> = {};
   for (const t of tables) out[t] = Number(((await db.prepare(`SELECT COUNT(*) AS n FROM ${t}`).first<Row>()) ?? {}).n ?? 0);
   return out;
+}
+
+/** The page for /services/<slug>, or null. Drafts and archived services are returned only when `includeUnpublished` is set (signed-in admins). */
+export async function getServiceBySlug(db: Db, slug: string, opts: { includeUnpublished?: boolean } = {}): Promise<ServiceSeed | null> {
+  const found = await getServices(db, { slug, publishedOnly: !opts.includeUnpublished });
+  return found[0] ?? null;
+}
+
+/** Where an old service address now lives (set when an editor renames a slug), or null. */
+export async function getSlugRedirect(db: Db, kind: "service" | "case_study" | "blog_post", slug: string): Promise<string | null> {
+  const rows = await all(db, "SELECT new_slug FROM slug_redirects WHERE kind = ?1 AND old_slug = ?2", kind, slug);
+  return rows[0] ? s(rows[0].new_slug) : null;
 }

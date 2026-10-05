@@ -1,6 +1,7 @@
 import Link from "@/components/site/ui/Link";
 import { changeStatus, removeSubmission } from "@/actions/admin";
-import ConfirmButton from "@/components/admin/ConfirmButton";
+import SubmitButton from "@/components/admin/SubmitButton";
+import { requireAdmin } from "@/lib/server/auth";
 import { STATUSES, countsByStatus, listSubmissions, type SubmissionStatus } from "@/lib/server/submissions";
 
 const PAGE_SIZE = 25;
@@ -23,6 +24,7 @@ const NEXT_STEPS: Record<SubmissionStatus, { to: SubmissionStatus; label: string
 const when = (iso: string) => new Date(iso).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" }) + " UTC";
 
 export default async function SubmissionsPage({ searchParams }: { searchParams: Promise<{ status?: string; page?: string }> }) {
+  await requireAdmin();
   const sp = await searchParams;
   const status = (STATUSES as readonly string[]).includes(sp.status ?? "") ? (sp.status as SubmissionStatus) : "all";
   const page = Math.max(1, Number.parseInt(sp.page ?? "1", 10) || 1);
@@ -33,8 +35,8 @@ export default async function SubmissionsPage({ searchParams }: { searchParams: 
 
   return (
     <>
-      <h1>Submissions</h1>
-      <p className="admin-sub">Messages sent through the contact form, newest first.</p>
+      <div className="page-head"><div><h1>Submissions</h1>
+      <p className="admin-sub">Messages sent through the contact form, newest first.</p></div></div>
       <nav className="tabs" aria-label="Filter by status">
         {TABS.map((t) => (
           <Link href={href(t.key)} aria-current={status === t.key ? "page" : undefined} key={t.key}>{t.label} <i>{counts[t.key]}</i></Link>
@@ -42,7 +44,7 @@ export default async function SubmissionsPage({ searchParams }: { searchParams: 
       </nav>
 
       {items.length === 0 ? (
-        <p className="empty">No submissions here yet.</p>
+        <div className="empty-state"><b>No submissions here</b><p>{status === "all" ? "Messages from the contact form will appear here." : `Nothing is marked “${status}” right now.`}</p></div>
       ) : (
         <div className="list">
           {items.map((s) => (
@@ -66,13 +68,13 @@ export default async function SubmissionsPage({ searchParams }: { searchParams: 
                     <input type="hidden" name="id" value={s.id} />
                     <input type="hidden" name="status" value={n.to} />
                     <input type="hidden" name="back" value={here} />
-                    <button type="submit">{n.label}</button>
+                    <SubmitButton>{n.label}</SubmitButton>
                   </form>
                 ))}
                 <form action={removeSubmission}>
                   <input type="hidden" name="id" value={s.id} />
                   <input type="hidden" name="back" value={here} />
-                  <ConfirmButton message="Delete this submission for good?">Delete</ConfirmButton>
+                  <SubmitButton className="danger" confirm="Delete this submission for good?">Delete</SubmitButton>
                 </form>
               </div>
             </article>
