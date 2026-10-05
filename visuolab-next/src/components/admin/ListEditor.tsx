@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-export type ListField = { key: string; label: string; kind?: "text" | "textarea" | "select"; options?: { value: string; label: string }[]; max?: number; placeholder?: string };
+export type ListField = { key: string; label: string; kind?: "text" | "textarea" | "select" | "checkbox" | "pairs"; options?: { value: string; label: string }[]; max?: number; placeholder?: string };
 type Item = Record<string, unknown>;
 
 type Props = {
@@ -23,13 +23,24 @@ type Props = {
   asStrings?: string;
 };
 
-const blank = (fields: ListField[], defaults: Item = {}): Item => ({ ...Object.fromEntries(fields.map((f) => [f.key, ""])), ...structuredClone(defaults) });
+const blank = (fields: ListField[], defaults: Item = {}): Item => ({ ...Object.fromEntries(fields.map((f) => [f.key, f.kind === "checkbox" ? false : f.kind === "pairs" ? [] : ""])), ...structuredClone(defaults) });
+
+/** "Title | detail" per line, in both directions. Only the first " | " on a line separates the two. */
+const pairsToText = (v: unknown) => (Array.isArray(v) ? v.map((p) => `${(p as { title: string }).title} | ${(p as { detail: string }).detail}`).join("\n") : "");
+const parsePairs = (text: string) =>
+  text.split("\n").map((l) => l.trim()).filter(Boolean).map((l) => { const i = l.indexOf(" | "); return i < 0 ? { title: l, detail: "" } : { title: l.slice(0, i).trim(), detail: l.slice(i + 3).trim() }; });
 
 /** An ordered list of small groups of fields: add, remove, move up and down. Native inputs; the whole list is sent as one JSON value. */
 export default function ListEditor({ name, items, fields, noun, min = 0, max = 12, defaults, errorPath, errors, asStrings }: Props) {
   const [rows, setRows] = useState<Item[]>(() => (asStrings ? (items as unknown as string[]).map((v) => ({ [asStrings]: v })) : items.map((i) => ({ ...i }))));
-  const value = JSON.stringify(asStrings ? rows.map((r) => r[asStrings]) : rows);
-  const set = (i: number, key: string, v: string) => setRows((r) => r.map((row, n) => (n === i ? { ...row, [key]: v } : row)));
+  const clean = (row: Item): Item => {
+    const out: Item = {};
+    for (const [k, v] of Object.entries(row)) if (!k.startsWith("_t_")) out[k] = v;
+    for (const f of fields) if (f.kind === "pairs" && typeof row[`_t_${f.key}`] === "string") out[f.key] = parsePairs(String(row[`_t_${f.key}`]));
+    return out;
+  };
+  const value = JSON.stringify(asStrings ? rows.map((r) => r[asStrings]) : rows.map(clean));
+  const set = (i: number, key: string, v: string | boolean) => setRows((r) => r.map((row, n) => (n === i ? { ...row, [key]: v } : row)));
   const move = (i: number, d: -1 | 1) =>
     setRows((r) => {
       const j = i + d;
@@ -59,7 +70,11 @@ export default function ListEditor({ name, items, fields, noun, min = 0, max = 1
             return (
               <div className={err ? "field has-err" : "field"} key={f.key}>
                 <label htmlFor={id}>{f.label}</label>
-                {f.kind === "textarea" ? (
+                {f.kind === "checkbox" ? (
+                  <label className="check"><input id={id} type="checkbox" checked={Boolean(row[f.key])} onChange={(e) => set(i, f.key, e.target.checked)} /> {f.placeholder ?? "Yes"}</label>
+                ) : f.kind === "pairs" ? (
+                  <textarea id={id} rows={3} value={typeof row[`_t_${f.key}`] === "string" ? String(row[`_t_${f.key}`]) : pairsToText(row[f.key])} placeholder={f.placeholder} onChange={(e) => set(i, `_t_${f.key}`, e.target.value)} />
+                ) : f.kind === "textarea" ? (
                   <textarea id={id} rows={3} maxLength={f.max} value={v} placeholder={f.placeholder} onChange={(e) => set(i, f.key, e.target.value)} />
                 ) : f.kind === "select" ? (
                   <select id={id} value={v} onChange={(e) => set(i, f.key, e.target.value)}>

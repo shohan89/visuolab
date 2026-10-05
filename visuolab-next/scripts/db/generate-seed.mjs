@@ -127,7 +127,7 @@ worksOrder.forEach((slug, i) => {
   const c = byCase[slug];
   if (!kind[slug]) throw new Error("no short kind for " + slug);
   insert("case_studies", {
-    id: q(caseId(slug)), slug: q(slug), title: q(c.hero.title), status: q("published"), position: q(i),
+    id: q(caseId(slug)), slug: q(slug), title: q(c.hero.title), status: q("published"), position: q(i), featured: q(homeCards.some((h) => h.slug === slug) ? 1 : 0), // featured = shown on the home page
     meta_title: q(c.meta.title), meta_description: q(c.meta.description),
     client_name: q(c.card.name), year: q(c.card.year), type_line: q(c.card.type), short_kind: q(kind[slug]),
     card_tags_json: j(c.card.tags), filters_json: j(c.card.filters),

@@ -2,7 +2,6 @@ import { FilterProvider } from "@/components/motion/Filter";
 import Aurora from "@/components/site/ui/Aurora";
 import FilterChips, { type Chip } from "@/components/site/ui/FilterChips";
 import ReviewsSection from "@/components/site/ui/ReviewsSection";
-import { caseBySlug, worksOrder } from "@/content/cases";
 import type { CaseStudy } from "@/content/types";
 import { st } from "@/lib/css";
 import WorksGrid from "./WorksGrid";
@@ -15,9 +14,8 @@ const DISCIPLINES: { key: string; label: string }[] = [
   { key: "motion", label: "Motion" },
 ];
 
-/** The works index: heading, discipline chips, the grid of case study cards, then the reviews carousel. */
-export default function WorksPage() {
-  const cases = worksOrder.map((s) => caseBySlug(s)).filter((c): c is CaseStudy => !!c);
+/** The works index: heading, discipline chips, the grid of case study cards, then the reviews carousel. `cases` come from the database, in the editors' order. */
+export default function WorksPage({ cases }: { cases: CaseStudy[] }) {
   const chips: Chip[] = [
     { key: "all", label: "All", count: cases.length },
     ...DISCIPLINES.map((d) => ({ ...d, count: cases.filter((c) => c.card.filters.includes(d.key)).length })),

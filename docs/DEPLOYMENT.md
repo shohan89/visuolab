@@ -22,7 +22,7 @@ Verified on this machine (Node 24, npm 11, Windows):
 | `npm run lint` | passes |
 | `npm run dev` | serves `/` (200), original CSS files linked in original order, `/assets/*` static files, `/about.html` → `/about` (308), `/api/health` reports D1 and R2 `ok` |
 | `npm run build` | passes (client, RSC and SSR bundles) |
-| `npm run db:migrate:local` | applies `0000`-`0009` (app meta, submissions, users and sessions, media, services and case studies, blog, settings/navigation/integrations/audit, `contact_submissions`, `slug_redirects`) |
+| `npm run db:migrate:local` | applies `0000`-`0010` (app meta, submissions, users and sessions, media, services and case studies, blog, settings/navigation/integrations/audit, `contact_submissions`, `slug_redirects`, `case_studies.featured`) |
 | `npm run preview` | builds, starts the built Worker in local workerd on port 8787; `/`, `/api/health`, redirect and assets all respond correctly |
 | `vinext-cloudflare deploy --dry-run` | passes. **No production deploy has been run yet.** |
 

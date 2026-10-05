@@ -14,7 +14,7 @@ function Gallery({ figures }: { figures: CaseFigure[] }) {
       <div className="wrap">
         <div className="gallery">
           {figures.map((f, i) => (
-            <figure className="reveal" style={st({ "--i": i })} key={f.caption}>
+            <figure className="reveal" style={st({ "--i": i })} key={`${i}-${f.src}`}>
               <img src={f.src} alt={f.alt} loading="lazy" style={pos(f)} />
               <figcaption>{f.caption}</figcaption>
             </figure>

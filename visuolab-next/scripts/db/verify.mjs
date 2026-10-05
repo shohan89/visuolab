@@ -134,6 +134,7 @@ const lens = { "about.faq": all["about.faq"]?.items?.length, "about.principles":
 const wantLens = { "about.faq": 6, "about.principles": 5, "about.milestones": 5, "about.offices": 4, "about.roles": 4, "about.mission_vision": 2, "home.why": 6, "home.stats": 4, "home.industries": 4, "home.process": 4, "home.work": 4, "site.footer.badges": 6, "site.contact.facts": 3 };
 check("page lists in site_settings have the same lengths as the pages", JSON.stringify(lens) === JSON.stringify(wantLens), JSON.stringify(lens));
 check("home work slugs are the four cards on the home page, in order", JSON.stringify(all["home.work"]?.slugs) === JSON.stringify(["orbit", "marlow", "kite", "verdant"]));
+check("featured case studies are the four shown on the home page", JSON.stringify(db.prepare("SELECT slug FROM case_studies WHERE featured = 1 ORDER BY position").all().map((r) => r.slug)) === JSON.stringify(all["home.work"]?.slugs));
 
 // ---- assets ---------------------------------------------------------------------------------------------------
 const mediaUrls = new Set(q("SELECT url FROM media").map((m) => m.url));

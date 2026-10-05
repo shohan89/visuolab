@@ -9,7 +9,7 @@ type NavItem = { href?: string; label: string; soon?: boolean };
 const GROUPS: { title: string; items: NavItem[] }[] = [
   { title: "Overview", items: [{ href: "/admin", label: "Dashboard" }] },
   { title: "Inbox", items: [{ href: "/admin/submissions", label: "Submissions" }] },
-  { title: "Content", items: [{ href: "/admin/services", label: "Services" }, { label: "Case studies", soon: true }, { label: "Blog", soon: true }, { label: "Media", soon: true }] },
+  { title: "Content", items: [{ href: "/admin/services", label: "Services" }, { href: "/admin/case-studies", label: "Case studies" }, { label: "Blog", soon: true }, { label: "Media", soon: true }] },
   { title: "Site", items: [{ label: "Navigation", soon: true }, { label: "Settings", soon: true }] },
 ];
 
