@@ -1,8 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { MediaField } from "./MediaPicker";
 
-export type ListField = { key: string; label: string; kind?: "text" | "textarea" | "select" | "checkbox" | "pairs"; options?: { value: string; label: string }[]; max?: number; placeholder?: string };
+export type ListField = { key: string; label: string; kind?: "text" | "textarea" | "select" | "checkbox" | "pairs" | "media";
+  /** For kind "media": the files the page already knows (thumbnails without a request) */
+  media?: { id: string; title: string; url: string; width: number | null; height: number | null }[]; options?: { value: string; label: string }[]; max?: number; placeholder?: string };
 type Item = Record<string, unknown>;
 
 type Props = {
@@ -70,7 +73,9 @@ export default function ListEditor({ name, items, fields, noun, min = 0, max = 1
             return (
               <div className={err ? "field has-err" : "field"} key={f.key}>
                 <label htmlFor={id}>{f.label}</label>
-                {f.kind === "checkbox" ? (
+                {f.kind === "media" ? (
+                  <MediaField id={id} value={v} known={f.media} label={`${noun} ${i + 1} image`} onChange={(mid) => set(i, f.key, mid)} />
+                ) : f.kind === "checkbox" ? (
                   <label className="check"><input id={id} type="checkbox" checked={Boolean(row[f.key])} onChange={(e) => set(i, f.key, e.target.checked)} /> {f.placeholder ?? "Yes"}</label>
                 ) : f.kind === "pairs" ? (
                   <textarea id={id} rows={3} value={typeof row[`_t_${f.key}`] === "string" ? String(row[`_t_${f.key}`]) : pairsToText(row[f.key])} placeholder={f.placeholder} onChange={(e) => set(i, `_t_${f.key}`, e.target.value)} />

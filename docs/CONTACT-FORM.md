@@ -108,7 +108,7 @@ Production:
 ```
 npx wrangler secret put SESSION_SECRET
 npx wrangler secret put RESEND_API_KEY      # when the key exists
-npm run db:migrate:remote                   # migrations 0000-0010 in the live D1 (not run yet)
+npm run db:migrate:remote                   # migrations 0000-0012 in the live D1 (not run yet)
 npm run db:seed:remote                      # content (not run yet)
 ADMIN_EMAIL=... ADMIN_PASSWORD=... npm run admin:create -- --remote   # first admin (not run yet)
 ```

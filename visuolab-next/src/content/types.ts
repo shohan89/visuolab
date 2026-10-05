@@ -70,9 +70,18 @@ export type CaseStudy = {
 
 /* ---- Blog (/blog and /blog/[slug]) ---------------------------------------------------------------------------- */
 
+/**
+ * One block of an article. Text in "paragraph", "list", "quote" and the lead may use **bold**, *italic*, `code` and [links](…)
+ * (src/lib/content/inline.ts); it is never treated as HTML.
+ */
 export type BlogBlock =
   | { type: "heading"; text: string } // level-2 heading; gets an id and an entry in the table of contents
-  | { type: "paragraph"; text: string };
+  | { type: "subheading"; text: string } // level-3 heading
+  | { type: "paragraph"; text: string }
+  | { type: "list"; ordered: boolean; items: string[] }
+  | { type: "quote"; text: string; cite: string }
+  | { type: "image"; src: string; alt: string; caption: string }
+  | { type: "divider" };
 
 export type BlogPost = {
   slug: string;
@@ -94,4 +103,14 @@ export type BlogPost = {
   outro: { before: string; linkText: string; href: string; after: string };
   /** Slugs of the two articles under "More from the studio" */
   related: string[];
+  /* Added by the CMS. Optional, so the typed seed content still satisfies this type. */
+  featured?: boolean;
+  tags?: string[];
+  /** Absolute https address search engines should treat as the original, when it is not this page */
+  canonicalUrl?: string;
+  /** Picture for link previews; the cover is used when there is none */
+  ogImage?: { src: string };
+  /** Full ISO timestamps */
+  publishedAtIso?: string;
+  updatedAtIso?: string;
 };

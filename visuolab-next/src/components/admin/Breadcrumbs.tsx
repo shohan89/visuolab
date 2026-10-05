@@ -3,13 +3,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-const LABELS: Record<string, string> = { admin: "Dashboard", submissions: "Submissions", services: "Services", "case-studies": "Case studies", new: "New", edit: "Edit", confirm: "Confirm" };
+const LABELS: Record<string, string> = { admin: "Dashboard", submissions: "Submissions", services: "Services", "case-studies": "Case studies", blog: "Blog", media: "Media", categories: "Categories", tags: "Tags", new: "New", edit: "Edit", confirm: "Confirm" };
 
 /** Trail built from the address: Dashboard / Submissions. Unknown segments are shown as they are. */
 export default function Breadcrumbs() {
   const parts = (usePathname() ?? "/admin").split("/").filter(Boolean);
   const crumbs = parts
-    .map((p, i) => ({ href: "/" + parts.slice(0, i + 1).join("/"), label: LABELS[p] ?? decodeURIComponent(p), id: /^(svc|case)_/.test(p) }))
+    .map((p, i) => ({ href: "/" + parts.slice(0, i + 1).join("/"), label: LABELS[p] ?? decodeURIComponent(p), id: /^(svc|case|post|media)_/.test(p) }))
     .filter((c) => !c.id); // a record id is not a page of its own
   return (
     <nav className="crumbs" aria-label="Breadcrumb">

@@ -33,9 +33,8 @@ export default function CaseStudyForm({ id, initial, media, others, services, or
   const v = (state?.values ?? initial) as CaseStudyInput;
   const errors = Object.fromEntries(Object.entries(state?.errors ?? {}).map(([k, m]) => [fieldKey(k), m]));
   const editing = !!id;
-  const mediaOptions = media.map((m) => ({ value: m.id, label: `${m.title}${m.width ? ` (${m.width}×${m.height})` : ""}` }));
   const shotFields = [
-    { key: "media", label: "Image", kind: "select" as const, options: mediaOptions },
+    { key: "media", label: "Image", kind: "media" as const, media },
     { key: "caption", label: "Caption", max: 160 },
     { key: "alt", label: "Description for screen readers", max: 200 },
     { key: "position", label: "Crop position (optional)", max: 20, placeholder: "20% 30%" },

@@ -22,7 +22,7 @@ Verified on this machine (Node 24, npm 11, Windows):
 | `npm run lint` | passes |
 | `npm run dev` | serves `/` (200), original CSS files linked in original order, `/assets/*` static files, `/about.html` → `/about` (308), `/api/health` reports D1 and R2 `ok` |
 | `npm run build` | passes (client, RSC and SSR bundles) |
-| `npm run db:migrate:local` | applies `0000`-`0010` (app meta, submissions, users and sessions, media, services and case studies, blog, settings/navigation/integrations/audit, `contact_submissions`, `slug_redirects`, `case_studies.featured`) |
+| `npm run db:migrate:local` | applies `0000`-`0012` (app meta, submissions, users and sessions, media, services and case studies, blog, settings/navigation/integrations/audit, `contact_submissions`, `slug_redirects`, `case_studies.featured`, blog SEO fields, media library columns) |
 | `npm run preview` | builds, starts the built Worker in local workerd on port 8787; `/`, `/api/health`, redirect and assets all respond correctly |
 | `vinext-cloudflare deploy --dry-run` | passes. **No production deploy has been run yet.** |
 
@@ -121,6 +121,8 @@ visuolab-next/
 | `SESSION_SECRET` (salt for visitor hashes; required in production), `RESEND_API_KEY` (optional until the key exists) | Worker secrets | `.dev.vars` locally; `npx wrangler secret put <NAME>` in production |
 | `SITE_URL`, `MAIL_FROM`, `MAIL_TO` | Worker vars | `wrangler.jsonc` |
 | Bindings `DB`, `MEDIA`, `ASSETS` | Bindings | `wrangler.jsonc` |
+| `MEDIA_BASE_URL` | Worker var | `wrangler.jsonc`. `https://media.<domain>` once the R2 bucket has a custom domain; empty = the Worker serves `/media/*` itself. See `MEDIA.md`. |
+| `IMAGE_TRANSFORMS` | Worker var | `"1"` only when Image Transformations are enabled on the zone; `"0"` otherwise. |
 
 Secrets are typed in `src/cloudflare-env.d.ts` (`wrangler types` does not know them). The contact form, rate limiting and the admin area are described in `CONTACT-FORM.md`; the remote database needs `npm run db:migrate:remote` before the first deploy of those features (not run yet).
 

@@ -2,6 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import type { MediaOption } from "@/lib/server/services-admin";
+import { MediaField } from "./MediaPicker";
 
 export function Err({ errors, k }: { errors: Record<string, string>; k: string }) {
   return errors[k] ? <p className="field-err" id={`err-${k}`}>{errors[k]}</p> : null;
@@ -25,18 +26,10 @@ export function Text({ name, label, defaultValue, max, rows, errors, hint, requi
 }
 
 export function MediaSelect({ name, altName, label, value, alt, media, errors }: { name: string; altName: string; label: string; value: string; alt: string; media: MediaOption[]; errors: Record<string, string> }) {
-  const [sel, setSel] = useState(value);
-  const cur = media.find((m) => m.id === sel);
   return (
     <div className={errors[name] ? "field has-err media-pick" : "field media-pick"}>
-      <label htmlFor={`f-${name}`}>{label}</label>
-      <div className="media-row">
-        {cur ? <img src={cur.url} alt="" width={96} height={72} /> : <span className="media-none">No image</span>}
-        <select id={`f-${name}`} name={name} value={sel} onChange={(e) => setSel(e.target.value)}>
-          <option value="">Choose an image…</option>
-          {media.map((m) => <option value={m.id} key={m.id}>{m.title}{m.width ? ` (${m.width}×${m.height})` : ""}</option>)}
-        </select>
-      </div>
+      <span className="label-like" id={`l-${name}`}>{label}</span>
+      <MediaField name={name} id={`f-${name}`} value={value} known={media} label={label} />
       <Err errors={errors} k={name} />
       <label htmlFor={`f-${altName}`} className="sub">Description for screen readers (leave empty if the image is only decoration)</label>
       <input id={`f-${altName}`} name={altName} type="text" defaultValue={alt} maxLength={240} />

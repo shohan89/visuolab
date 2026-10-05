@@ -1,5 +1,6 @@
 import "server-only";
 import { getServiceSeedNav } from "./services-nav";
+import { publicMediaUrl } from "@/lib/media/url";
 import { getDb } from "./db";
 import type { ServiceInput } from "@/lib/validation/service";
 
@@ -18,15 +19,16 @@ const now = () => new Date().toISOString();
 export type ServiceListItem = { id: string; slug: string; title: string; status: string; position: number; updatedAt: string; publishedAt: string | null; caseCount: number };
 export type StatusFilter = "all" | "draft" | "published" | "archived";
 
-const like = (q: string) => `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+// D1 limits a LIKE pattern to 50 bytes, so searches and reference scans use instr() instead: no pattern, no length limit, no wildcards to escape
+const has = (col: string, p: string) => `instr(lower(${col}), ${p}) > 0`;
 
 export async function listServices(opts: { q?: string; status?: StatusFilter }): Promise<{ items: ServiceListItem[]; counts: Record<StatusFilter, number>; total: number }> {
   const db = getDb();
   const where: string[] = [];
   const binds: unknown[] = [];
   if (opts.q?.trim()) {
-    binds.push(like(opts.q.trim().slice(0, 100)));
-    where.push(`(v.title LIKE ?${binds.length} ESCAPE '\\' OR v.slug LIKE ?${binds.length} ESCAPE '\\' OR v.meta_title LIKE ?${binds.length} ESCAPE '\\')`);
+    binds.push(opts.q.trim().slice(0, 100).toLowerCase());
+    where.push(`(${["v.title", "v.slug", "v.meta_title"].map((c) => has(c, `?${binds.length}`)).join(" OR ")})`);
   }
   if (opts.status && opts.status !== "all") {
     binds.push(opts.status);
@@ -49,8 +51,8 @@ export async function listServices(opts: { q?: string; status?: StatusFilter }):
 
 export type MediaOption = { id: string; title: string; url: string; width: number | null; height: number | null };
 export async function mediaOptions(): Promise<MediaOption[]> {
-  const r = await getDb().prepare("SELECT id, title, url, width, height FROM media WHERE kind = 'image' ORDER BY slug").all<Row>();
-  return (r.results ?? []).map((m) => ({ id: s(m.id), title: s(m.title), url: s(m.url), width: (m.width as number | null) ?? null, height: (m.height as number | null) ?? null }));
+  const r = await getDb().prepare("SELECT id, title, url, width, height FROM media WHERE kind = 'image' ORDER BY created_at DESC, slug LIMIT 300").all<Row>(); // newest 300; a file chosen earlier is looked up by id when it is not in this list
+  return (r.results ?? []).map((m) => ({ id: s(m.id), title: s(m.title), url: publicMediaUrl(s(m.url)), width: (m.width as number | null) ?? null, height: (m.height as number | null) ?? null }));
 }
 
 export type CaseOption = { id: string; label: string; status: string };
@@ -241,15 +243,14 @@ export type Reference = { where: string; detail: string };
 export async function serviceReferences(slug: string, id: string): Promise<Reference[]> {
   const db = getDb();
   const path = `/services/${slug}`;
-  const pat = `%${path}%`;
   const out: Reference[] = [];
-  const nav = await db.prepare("SELECT menu, label FROM navigation_items WHERE href = ?1 OR href LIKE ?2").bind(path, `${path}/%`).all<{ menu: string; label: string }>();
+  const nav = await db.prepare("SELECT menu, label FROM navigation_items WHERE href = ?1 OR instr(href, ?2) = 1").bind(path, `${path}/`).all<{ menu: string; label: string }>();
   for (const n of nav.results ?? []) out.push({ where: `Navigation (${n.menu.replace("_", " ")})`, detail: n.label });
-  const set = await db.prepare("SELECT title FROM site_settings WHERE value_json LIKE ?1").bind(pat).all<{ title: string }>();
+  const set = await db.prepare("SELECT title FROM site_settings WHERE instr(value_json, ?1) > 0").bind(path).all<{ title: string }>();
   for (const r of set.results ?? []) out.push({ where: "Site content", detail: r.title });
-  const svc = await db.prepare("SELECT title FROM services WHERE id <> ?1 AND (hero_cta_href = ?2 OR band_json LIKE ?3 OR included_json LIKE ?3)").bind(id, path, pat).all<{ title: string }>();
+  const svc = await db.prepare("SELECT title FROM services WHERE id <> ?1 AND (hero_cta_href = ?2 OR instr(band_json, ?3) > 0 OR instr(included_json, ?3) > 0)").bind(id, path, path).all<{ title: string }>();
   for (const r of svc.results ?? []) out.push({ where: "Another service page", detail: r.title });
-  const posts = await db.prepare("SELECT title FROM blog_posts WHERE outro_json LIKE ?1 OR body_json LIKE ?1").bind(pat).all<{ title: string }>();
+  const posts = await db.prepare("SELECT title FROM blog_posts WHERE instr(outro_json, ?1) > 0 OR instr(body_json, ?1) > 0").bind(path).all<{ title: string }>();
   for (const r of posts.results ?? []) out.push({ where: "Blog post", detail: r.title });
   if (getServiceSeedNav().includes(path)) out.push({ where: "Site menu and footer", detail: "Built into the website's pages (header menu, footer, home page)" });
   return out;

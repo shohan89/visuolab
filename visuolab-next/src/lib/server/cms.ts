@@ -5,6 +5,8 @@
  * typed content in src/content/*.ts; the verification script proves the two are identical.
  */
 import type { BlogPost, CaseCardSeed, CaseStudy, ServiceSeed } from "@/content/types";
+import { mapBlogPost } from "../content/blog-mapper.ts";
+import { publicMediaUrl } from "../media/url.ts";
 import { mapCaseCard, mapCaseStudy } from "../content/case-study-mapper.ts"; // relative with extension: scripts/db/verify.mjs loads this file in plain Node
 
 type Db = D1Database;
@@ -16,7 +18,7 @@ const s = (v: unknown) => String(v);
 /** id -> public URL of every media row. */
 export async function mediaUrls(db: Db): Promise<Record<string, string>> {
   const rows = await all(db, "SELECT id, url FROM media");
-  return Object.fromEntries(rows.map((r) => [s(r.id), s(r.url)]));
+  return Object.fromEntries(rows.map((r) => [s(r.id), publicMediaUrl(s(r.url))])); // uploaded files load from the media domain when one is configured
 }
 
 const STATUS = "status = 'published'";
@@ -81,25 +83,41 @@ export async function getServices(db: Db, opts: { publishedOnly?: boolean; slug?
   });
 }
 
-export async function getBlogPosts(db: Db, opts: { publishedOnly?: boolean } = {}): Promise<BlogPost[]> {
+/** Articles visitors can read: published, and not scheduled for later. */
+const LIVE = "p.status = 'published' AND p.published_at <= ?1";
+
+async function tagsByPost(db: Db): Promise<Record<string, string[]>> {
+  const rows = await all(db, "SELECT pt.post_id, t.title FROM blog_post_tags pt JOIN blog_tags t ON t.id = pt.tag_id ORDER BY t.title");
+  const out: Record<string, string[]> = {};
+  for (const r of rows) (out[s(r.post_id)] ??= []).push(s(r.title));
+  return out;
+}
+
+export async function getBlogPosts(db: Db, opts: { publishedOnly?: boolean; slug?: string } = {}): Promise<BlogPost[]> {
   const media = await mediaUrls(db);
-  const where = opts.publishedOnly ? "WHERE p.status = 'published'" : "";
-  const rows = await all(db, `SELECT p.*, c.title AS category_title FROM blog_posts p JOIN blog_categories c ON c.id = p.category_id ${where} ORDER BY p.published_at DESC, p.slug`);
-  return rows.map((p) => ({
-    slug: s(p.slug),
-    meta: { title: s(p.meta_title), description: s(p.meta_description) },
-    category: s(p.category_title),
-    title: s(p.title),
-    publishedAt: s(p.published_at).slice(0, 10),
-    readMinutes: Number(p.read_minutes),
-    author: { name: s(p.author_name), avatar: media[s(p.author_image_id)]! },
-    cover: { src: media[s(p.cover_image_id)]!, alt: s(p.cover_alt) },
-    ...(p.excerpt ? { excerpt: s(p.excerpt) } : {}),
-    lead: s(p.lead),
-    body: parse(p.body_json),
-    outro: parse(p.outro_json),
-    related: parse(p.related_json),
-  }));
+  const tags = await tagsByPost(db);
+  const conds: string[] = [];
+  const binds: unknown[] = [];
+  if (opts.publishedOnly) { binds.push(new Date().toISOString()); conds.push(LIVE.replace("?1", `?${binds.length}`)); }
+  if (opts.slug) { binds.push(opts.slug); conds.push(`p.slug = ?${binds.length}`); }
+  const rows = await all(
+    db,
+    `SELECT p.*, c.title AS category_title FROM blog_posts p JOIN blog_categories c ON c.id = p.category_id ${conds.length ? "WHERE " + conds.join(" AND ") : ""} ORDER BY p.published_at DESC, p.slug`,
+    ...binds,
+  );
+  return rows.map((p) => mapBlogPost(p, media, tags[s(p.id)] ?? []));
+}
+
+/**
+ * One article and the articles it recommends. Visitors get only live articles; with `includeUnpublished` (a signed-in admin) drafts,
+ * scheduled and archived articles open too, as a preview. The recommended ones are always live ones.
+ */
+export async function getBlogPostBySlug(db: Db, slug: string, opts: { includeUnpublished?: boolean } = {}): Promise<{ post: BlogPost; related: BlogPost[] } | null> {
+  const found = await getBlogPosts(db, { slug, publishedOnly: !opts.includeUnpublished });
+  const post = found[0];
+  if (!post) return null;
+  const live = await getBlogPosts(db, { publishedOnly: true });
+  return { post, related: post.related.map((r) => live.find((x) => x.slug === r)).filter((x): x is BlogPost => !!x) };
 }
 
 export async function getBlogCategories(db: Db): Promise<string[]> {

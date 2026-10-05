@@ -1,21 +1,22 @@
 import Link from "@/components/site/ui/Link";
 import { PillBadge } from "@/components/site/ui/Pill";
-import { postBySlug } from "@/content/blog";
-import type { BlogPost } from "@/content/types";
+import type { BlogBlock, BlogPost } from "@/content/types";
 import { st } from "@/lib/css";
 import { formatDate } from "@/lib/dates";
 import { headingId } from "@/lib/slug";
 import ArticleToc, { type TocItem } from "./ArticleToc";
+import InlineText from "./InlineText";
 import ShareRail from "./ShareRail";
 
-/** An article page. All six articles share one layout, so one component renders any BlogPost (markup follows blog/*.html). */
-export default function BlogArticle({ post: p, url }: { post: BlogPost; url: string }) {
-  const toc: TocItem[] = p.body
-    .filter((b) => b.type === "heading")
-    .map((b, i) => ({ id: headingId(b.text, i), text: b.text }));
+/**
+ * An article page. Every article shares one layout, so one component renders any BlogPost (markup follows blog/*.html).
+ * Text goes through InlineText and the block switch below: React elements only, never injected HTML. `related` are live articles.
+ */
+export default function BlogArticle({ post: p, related, url }: { post: BlogPost; related: BlogPost[]; url: string }) {
+  const headings = p.body.filter((b): b is Extract<BlogBlock, { type: "heading" }> => b.type === "heading");
+  const toc: TocItem[] = headings.map((b, i) => ({ id: headingId(b.text, i), text: b.text }));
   // position of each heading among the headings (its table-of-contents entry), or -1 for paragraphs
   const tocIndex = p.body.map((b, i) => (b.type === "heading" ? p.body.slice(0, i).filter((x) => x.type === "heading").length : -1));
-  const related = p.related.map((s) => postBySlug(s)).filter((r): r is BlogPost => !!r);
 
   return (
     <>
@@ -25,7 +26,7 @@ export default function BlogArticle({ post: p, url }: { post: BlogPost; url: str
             <p className="crumbs reveal"><Link href="/blog">Blog</Link><span>/</span><span>{p.category}</span></p>
             <h1 className="h1 reveal" style={st({ "--i": 0 })}>{p.title}</h1>
             <div className="byline reveal" style={st({ "--i": 1 })}>
-              <img className="avatar" src={p.author.avatar} alt="" />
+              {p.author.avatar && <img className="avatar" src={p.author.avatar} alt="" />}
               <div><b>{p.author.name}</b></div>
               <span className="dot" aria-hidden="true"></span><span>{formatDate(p.publishedAt)}</span>
               <span className="dot" aria-hidden="true"></span><span>{`${p.readMinutes} min read`}</span>
@@ -37,10 +38,20 @@ export default function BlogArticle({ post: p, url }: { post: BlogPost; url: str
           <div className="article-grid">
             <ArticleToc items={toc} />
             <div className="prose reveal">
-              <p className="post-lead">{p.lead}</p>
+              <p className="post-lead"><InlineText>{p.lead}</InlineText></p>
               {p.body.map((b, i) => {
-                if (b.type === "heading") return <h2 id={toc[tocIndex[i] ?? 0]?.id} key={i}>{b.text}</h2>;
-                return <p key={i}>{b.text}</p>;
+                switch (b.type) {
+                  case "heading": return <h2 id={toc[tocIndex[i] ?? 0]?.id} key={i}>{b.text}</h2>;
+                  case "subheading": return <h3 key={i}>{b.text}</h3>;
+                  case "paragraph": return <p key={i}><InlineText>{b.text}</InlineText></p>;
+                  case "list": {
+                    const items = b.items.map((it, n) => <li key={n}><InlineText>{it}</InlineText></li>);
+                    return b.ordered ? <ol key={i}>{items}</ol> : <ul key={i}>{items}</ul>;
+                  }
+                  case "quote": return <blockquote key={i}><p><InlineText>{b.text}</InlineText></p>{b.cite && <cite>{b.cite}</cite>}</blockquote>;
+                  case "image": return <figure className="post-figure" key={i}><img src={b.src} alt={b.alt} loading="lazy" />{b.caption && <figcaption>{b.caption}</figcaption>}</figure>;
+                  case "divider": return <hr className="post-divider" key={i} />;
+                }
               })}
               <hr />
               <p className="outro">{p.outro.before} <a href={p.outro.href}>{p.outro.linkText}</a>{p.outro.after}</p>

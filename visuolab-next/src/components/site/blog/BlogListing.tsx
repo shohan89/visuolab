@@ -2,19 +2,21 @@ import Link from "@/components/site/ui/Link";
 import { FilterProvider } from "@/components/motion/Filter";
 import Aurora from "@/components/site/ui/Aurora";
 import FilterChips, { type Chip } from "@/components/site/ui/FilterChips";
-import { blogOrder, blogTopics, postBySlug } from "@/content/blog";
 import type { BlogPost } from "@/content/types";
 import { st } from "@/lib/css";
 import { formatDate } from "@/lib/dates";
 import BlogGrid from "./BlogGrid";
 
-/** The blog index: heading, topic chips, the featured (latest) article, then the grid of the others. */
-export default function BlogListing() {
-  const posts = blogOrder.map((s) => postBySlug(s)).filter((p): p is BlogPost => !!p);
-  const [featured, ...rest] = posts;
+/**
+ * The blog index: heading, topic chips, the featured article, then the grid of the others. `posts` are the live articles, newest first;
+ * the featured one is the newest article flagged featured, or the newest article when none is.
+ */
+export default function BlogListing({ posts, topics }: { posts: BlogPost[]; topics: string[] }) {
+  const featured = posts.find((p) => p.featured) ?? posts[0];
+  const rest = posts.filter((p) => p !== featured);
   const chips: Chip[] = [
     { key: "all", label: "All", count: posts.length },
-    ...blogTopics.map((t) => ({ key: t, label: t, count: posts.filter((p) => p.category === t).length })),
+    ...topics.map((t) => ({ key: t, label: t, count: posts.filter((p) => p.category === t).length })),
   ];
   return (
     <FilterProvider>
@@ -37,7 +39,7 @@ export default function BlogListing() {
                 <div className="body">
                   <p className="post-meta"><span className="cat">{featured.category}</span><span>{formatDate(featured.publishedAt)}</span><span>{`${featured.readMinutes} min read`}</span></p>
                   <h2>{featured.title}</h2>
-                  <p className="excerpt">{featured.excerpt}</p>
+                  <p className="excerpt">{featured.excerpt ?? featured.meta.description}</p>
                   <span className="arrow-link">Read the article <svg viewBox="0 0 24 24"><path d="M7 17L17 7M9 7h8v8" /></svg></span>
                 </div>
               </Link>

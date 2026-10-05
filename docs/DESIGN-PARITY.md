@@ -276,6 +276,8 @@ None of these changes layout, spacing, typography or color.
 28. **Separate admin area.** `/admin` has its own root layout, stylesheet and `noindex`; it shares nothing with the public site's design.
 16. **CSS is not minified in production builds** (`build.cssMinify: false`). Vite 8's Lightning CSS minifier rewrote the `backdrop-filter` + `-webkit-backdrop-filter` pairs to the prefixed property only, which removed the blur on the About slider captions in Chromium (0.03–0.06 % pixel difference). The stylesheets are small; the original CSS now ships as written.
 
+- **Blog CMS block styles (additive).** `src/styles/pages.css` ends with a marked "CMS additions" section for article elements the original site never had (h3, lists, quotes, figures, inline code). Selectors only match those new elements; the six original articles contain none, and all blog captures are 0 px different (see `BLOG-CMS.md`).
+
 ## 7. Unresolved
 
 1. ~~Dev server only: client-side navigation failed with `process is not defined`~~ **Resolved.** vinext's dev runtime defines `window.process` and removes it after the first client navigation. `SiteMotion` now pins the property in dev only (`import.meta.env.DEV`), and Home → About → Home → `/about#careers` works in `vite dev` with no console issues. Production builds were never affected.

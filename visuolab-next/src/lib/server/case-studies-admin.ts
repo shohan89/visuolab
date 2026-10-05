@@ -11,7 +11,8 @@ import { builtInLinksToCase } from "./services-nav";
 
 const s = (v: unknown) => String(v ?? "");
 const now = () => new Date().toISOString();
-const like = (q: string) => `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+// D1 limits a LIKE pattern to 50 bytes, so searches and reference scans use instr() instead: no pattern, no length limit, no wildcards to escape
+const has = (col: string, p: string) => `instr(lower(${col}), ${p}) > 0`;
 
 /* ---- lists ---------------------------------------------------------------------------------------------------- */
 
@@ -29,12 +30,12 @@ export async function listCaseStudies(opts: CaseListQuery): Promise<{ items: Cas
   const binds: unknown[] = [];
   const bind = (v: unknown) => { binds.push(v); return `?${binds.length}`; };
   if (opts.q?.trim()) {
-    const p = bind(like(opts.q.trim().slice(0, 100)));
-    where.push(`(c.title LIKE ${p} ESCAPE '\\' OR c.slug LIKE ${p} ESCAPE '\\' OR c.client_name LIKE ${p} ESCAPE '\\' OR c.type_line LIKE ${p} ESCAPE '\\' OR c.facts_json LIKE ${p} ESCAPE '\\')`);
+    const p = bind(opts.q.trim().slice(0, 100).toLowerCase());
+    where.push(`(${["c.title", "c.slug", "c.client_name", "c.type_line", "c.facts_json"].map((x) => has(x, p)).join(" OR ")})`);
   }
   if (opts.status && opts.status !== "all") where.push(`c.status = ${bind(opts.status)}`);
   if (opts.featured) where.push("c.featured = 1");
-  if (opts.discipline) where.push(`c.filters_json LIKE ${bind(`%"${opts.discipline.replace(/[^a-z]/g, "")}"%`)}`);
+  if (opts.discipline) where.push(`instr(c.filters_json, ${bind(`"${opts.discipline.replace(/[^a-z]/g, "")}"`)}) > 0`);
   const rows = await db
     .prepare(
       `SELECT c.id, c.slug, c.title, c.client_name, c.year, c.type_line, c.status, c.featured, c.position, c.updated_at, c.filters_json, m.url AS image_url,
@@ -167,7 +168,7 @@ export async function createCaseStudy(input: CaseStudyInput): Promise<string> {
 /** Rewrites the "More work" slug lists of the other case studies when a slug changes (to the new slug) or goes away (null removes it). */
 async function rewriteMoreLists(oldSlug: string, newSlug: string | null, exceptId: string) {
   const db = getDb();
-  const rows = (await db.prepare("SELECT id, more_json FROM case_studies WHERE id <> ?1 AND more_json LIKE ?2").bind(exceptId, `%"${oldSlug}"%`).all<{ id: string; more_json: string }>()).results ?? [];
+  const rows = (await db.prepare("SELECT id, more_json FROM case_studies WHERE id <> ?1 AND instr(more_json, ?2) > 0").bind(exceptId, `"${oldSlug}"`).all<{ id: string; more_json: string }>()).results ?? [];
   return rows.map((r) => {
     const doc = JSON.parse(r.more_json) as MoreDoc;
     doc.slugs = newSlug ? doc.slugs.map((x) => (x === oldSlug ? newSlug : x)) : doc.slugs.filter((x) => x !== oldSlug);
@@ -246,15 +247,15 @@ export async function caseReferences(slug: string, id: string): Promise<Referenc
   const db = getDb();
   const path = `/works/${slug}`;
   const out: Reference[] = [];
-  const nav = await db.prepare("SELECT menu, label FROM navigation_items WHERE href = ?1 OR href LIKE ?2").bind(path, `${path}/%`).all<{ menu: string; label: string }>();
+  const nav = await db.prepare("SELECT menu, label FROM navigation_items WHERE href = ?1 OR instr(href, ?2) = 1").bind(path, `${path}/`).all<{ menu: string; label: string }>();
   for (const n of nav.results ?? []) out.push({ where: `Navigation (${n.menu.replace("_", " ")})`, detail: n.label });
-  const set = await db.prepare("SELECT title FROM site_settings WHERE value_json LIKE ?1 OR value_json LIKE ?2").bind(`%${path}%`, `%"${slug}"%`).all<{ title: string }>();
+  const set = await db.prepare("SELECT title FROM site_settings WHERE instr(value_json, ?1) > 0 OR instr(value_json, ?2) > 0").bind(path, `"${slug}"`).all<{ title: string }>();
   for (const r of set.results ?? []) out.push({ where: "Site content", detail: r.title });
   const svc = await db.prepare("SELECT v.title FROM service_case_studies l JOIN services v ON v.id = l.service_id WHERE l.case_study_id = ?1 ORDER BY v.position").bind(id).all<{ title: string }>();
   for (const r of svc.results ?? []) out.push({ where: "Service page", detail: `${r.title} shows this case study` });
-  const more = await db.prepare("SELECT client_name FROM case_studies WHERE id <> ?1 AND more_json LIKE ?2").bind(id, `%"${slug}"%`).all<{ client_name: string }>();
+  const more = await db.prepare("SELECT client_name FROM case_studies WHERE id <> ?1 AND instr(more_json, ?2) > 0").bind(id, `"${slug}"`).all<{ client_name: string }>();
   for (const r of more.results ?? []) out.push({ where: "More work", detail: `Listed under ${r.client_name}` });
-  const posts = await db.prepare("SELECT title FROM blog_posts WHERE outro_json LIKE ?1 OR body_json LIKE ?1").bind(`%${path}%`).all<{ title: string }>();
+  const posts = await db.prepare("SELECT title FROM blog_posts WHERE instr(outro_json, ?1) > 0 OR instr(body_json, ?1) > 0").bind(path).all<{ title: string }>();
   for (const r of posts.results ?? []) out.push({ where: "Blog post", detail: r.title });
   if (builtInLinksToCase(slug)) out.push({ where: "Home and About pages", detail: "Built into the website's pages (work cards and hero)" });
   return out;

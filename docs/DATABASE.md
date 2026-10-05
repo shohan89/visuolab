@@ -1,6 +1,6 @@
 # Database (Cloudflare D1)
 
-D1 is SQLite, so everything below is plain SQLite. The schema lives in `visuolab-next/migrations/`, the content in `visuolab-next/db/seed/content.sql`, the read queries in `src/lib/server/cms.ts`. The **service pages** and the **Works pages** read from the database (`SERVICES-CMS.md`, `CASE-STUDIES-CMS.md`); the other public pages still render the typed content in `src/content/*.ts`. The seed and the read queries were checked to be identical to that content (section 9), so switching a page over changes no pixel.
+D1 is SQLite, so everything below is plain SQLite. The schema lives in `visuolab-next/migrations/`, the content in `visuolab-next/db/seed/content.sql`, the read queries in `src/lib/server/cms.ts`. The **service**, **Works** and **Blog** pages read from the database (`SERVICES-CMS.md`, `CASE-STUDIES-CMS.md`, `BLOG-CMS.md`); the other public pages still render the typed content in `src/content/*.ts`. The seed and the read queries were checked to be identical to that content (section 9), so switching a page over changes no pixel.
 
 ## 1. Conventions
 
@@ -33,6 +33,8 @@ Applied in order with `npm run db:migrate:local` (local), `npm run db:migrate:pr
 | `0008_contact_submissions.sql` | `submissions` becomes **contact_submissions**; existing rows are copied over (tested). |
 | `0009_slug_redirects.sql` | **slug_redirects**: old address to new address after an editor renames a slug (see `SERVICES-CMS.md`). |
 | `0010_case_study_featured.sql` | `case_studies.featured` flag (0/1) and an index; the seed marks the four home page cases. |
+| `0012_media_library.sql` | `media.caption`, `original_name`, `sha256` (64 hex characters) and two indexes; see `MEDIA.md`. |
+| `0011_blog_seo_fields.sql` | `blog_posts.canonical_url` (https only) and `og_image_id` (media, SET NULL), two indexes. Scheduled publishing needs no column (see `BLOG-CMS.md`). |
 
 The 15 requested tables are all there: users, sessions, services, case_studies, case_study_images, blog_posts, blog_categories, blog_tags, blog_post_tags, contact_submissions, media, site_settings, navigation_items, integrations, audit_logs. Extra: `service_case_studies` (which cases a service page shows), `slug_redirects` (old addresses of renamed pages), `rate_limits` (form and sign-in counters), `app_meta` (health check).
 
@@ -163,7 +165,7 @@ The file starts with `DELETE` statements for the content tables, so it can be ap
 
 ## 9. Verification
 
-`npm run db:verify` builds a new in-memory SQLite database from the migration files and the seed and runs **105 checks, all passing**; `npm run db:verify:local` runs the read-only subset against the real local D1 (`.wrangler/state`): **65 of 65 pass**. What is checked:
+`npm run db:verify` builds a new in-memory SQLite database from the migration files and the seed and runs **129 checks, all passing**; `npm run db:verify:local` runs the read-only subset against the real local D1 (`.wrangler/state`): **83 of 83 pass**. What is checked:
 
 - all 9 migrations apply in order on an empty database; the rename keeps contact rows that existed before it; the seed applies twice with the same result;
 - the 15 tables exist; each content table has id, slug, title, status, created, updated and published columns; 19 foreign keys, 13 unique constraints and 19 secondary indexes are declared;
@@ -198,4 +200,4 @@ Example queries (all verified): published case studies in order `SELECT slug, ti
 - **Case study cards:** the card on the home and service pages (`showcase_json`) is separate from the case page data because its headline and tags differ; it is identical wherever a case appears, so it is stored once per case.
 - **Authors** are not a table: an article stores the author's name and portrait. Add one if there will be several writers.
 - **No `phone` column** in `contact_submissions`: the form has no such field and the design must not change.
-- `audit_logs` records sign-in events, submission changes and service changes. Only the service and works pages read their content from the database so far; the editors and page switch for case studies, blog, navigation and settings are the next phases.
+- `audit_logs` records sign-in events, submission changes and service changes. Only the service, works and blog pages read their content from the database so far; the editors and page switch for case studies, blog, navigation and settings are the next phases.

@@ -9,7 +9,7 @@
 // small D1-shaped adapter and their results are compared, field for field, with the typed content the pages render today.
 import { DatabaseSync } from "node:sqlite";
 import { deepStrictEqual } from "node:assert";
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -118,7 +118,8 @@ const navData = await imp("src/content/nav-data.ts");
 
 same("getServices() = the four service pages (every field, in order)", await cms.getServices(d1), services);
 same("getCaseStudies() = the eight case studies (every field, in /works order)", await cms.getCaseStudies(d1), worksOrder.map((s) => caseStudies.find((c) => c.slug === s)));
-same("getBlogPosts() = the six articles (every field, newest first)", await cms.getBlogPosts(d1), blogOrder.map((s) => blogPosts.find((p) => p.slug === s)));
+const CMS_EXTRAS = ["featured", "tags", "canonicalUrl", "ogImage", "publishedAtIso", "updatedAtIso"]; // fields the CMS adds on top of the typed content
+same("getBlogPosts() = the six articles (every field, newest first)", (await cms.getBlogPosts(d1)).map((p) => Object.fromEntries(Object.entries(p).filter(([k]) => !CMS_EXTRAS.includes(k)))), blogOrder.map((s) => blogPosts.find((p) => p.slug === s)));
 same("getBlogCategories() = the five blog topics", await cms.getBlogCategories(d1), blogTopics);
 same("setting 'reviews' = the review list", await cms.getSetting(d1, "reviews"), reviews);
 same("setting 'trusted_by' = the logo marquee", await cms.getSetting(d1, "trusted_by"), trustedBy);
@@ -204,6 +205,11 @@ if (!readOnly) {
   rejects("a redirect cannot point at itself", "INSERT INTO slug_redirects (id, kind, old_slug, new_slug, created_at) VALUES ('r3', 'service', 'same', 'same', '2026-10-04T00:00:00.000Z')", /CHECK/);
   rejects("a redirect needs a known kind", "INSERT INTO slug_redirects (id, kind, old_slug, new_slug, created_at) VALUES ('r4', 'page', 'a', 'b', '2026-10-04T00:00:00.000Z')", /CHECK/);
   db.exec("DELETE FROM slug_redirects");
+  rejects("a canonical URL must be https", "UPDATE blog_posts SET canonical_url = 'http://example.com/x' WHERE slug = 'webflow-or-next-js'", /CHECK/);
+  rejects("an Open Graph image must be a media file", "UPDATE blog_posts SET og_image_id = 'media_nope' WHERE slug = 'webflow-or-next-js'", /FOREIGN KEY/);
+  db.exec("UPDATE blog_posts SET published_at = '2999-01-01T00:00:00.000Z' WHERE slug = 'webflow-or-next-js'");
+  check("a published article dated in the future is scheduled: not in the live list, still stored", one("SELECT COUNT(*) n FROM blog_posts p WHERE p.status = 'published' AND p.published_at <= ?", "2026-10-05T00:00:00.000Z").n === 5 && one("SELECT COUNT(*) n FROM blog_posts WHERE status = 'published'").n === 6);
+  db.exec("UPDATE blog_posts SET published_at = '2026-07-16T00:00:00.000Z' WHERE slug = 'webflow-or-next-js'");
   rejects("a menu name outside the list is refused", `INSERT INTO navigation_items (id, menu, position, label, created_at, updated_at) VALUES ('n3', 'sidebar', 9, 'x', ${NOW}, ${NOW})`, /CHECK/);
   rejects("a contact message status outside the list is refused", `INSERT INTO contact_submissions (id, name, email, message, status, created_at, updated_at) VALUES ('c1', 'a', 'a@b.c', 'm', 'maybe', ${NOW}, ${NOW})`, /CHECK/);
   rejects("a user role outside admin/editor is refused", `INSERT INTO users (id, email, name, password_hash, role, created_at, updated_at) VALUES ('u3', 'r@x.com', 'a', 'h', 'owner', ${NOW}, ${NOW})`, /CHECK/);
@@ -233,6 +239,74 @@ if (!readOnly) {
   db.exec(`UPDATE services SET status = 'published', published_at = ${NOW} WHERE id = 't1'`);
   check("a draft becomes published once it has a publish date", one("SELECT status FROM services WHERE id = 't1'").status === "published");
   db.exec("DELETE FROM services WHERE id = 't1'");
+}
+
+// ---- media: what the upload code accepts, and where pictures load from ------------------------------------------------
+{
+  const { sniffImage, MAX_BYTES } = await imp("src/lib/media/sniff.ts");
+  const urls = await imp("src/lib/media/url.ts");
+  const bytes = (...parts) => Uint8Array.from(parts.flat());
+  const be32 = (n) => [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255];
+  const pngHeader = (w, h) => bytes([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], be32(13), [0x49, 0x48, 0x44, 0x52], be32(w), be32(h), [8, 6, 0, 0, 0], be32(0));
+
+  // every shipped picture is read from its own header and must agree with the seed (type and size)
+  let files = 0;
+  const bad = [];
+  for (const m of db.prepare("SELECT slug, url, mime, width, height FROM media WHERE kind = 'image' AND storage = 'static'").all()) {
+    const path = join(ROOT, "public", m.url);
+    if (!existsSync(path)) { bad.push(m.slug + " (missing)"); continue; }
+    const r = sniffImage(readFileSync(path));
+    files++;
+    if (!r.ok || r.image.mime !== m.mime || r.image.width !== m.width || r.image.height !== m.height) bad.push(m.slug + ": " + (r.ok ? `${r.image.mime} ${r.image.width}x${r.image.height} vs ${m.mime} ${m.width}x${m.height}` : r.error));
+  }
+  check(`the file headers of all ${files} shipped pictures give the same type and size as the seed`, files > 0 && bad.length === 0, bad.slice(0, 3).join("; "));
+
+  const no = (name, input, re) => { const r = sniffImage(input); check(name, !r.ok && re.test(r.error), r.ok ? "accepted" : r.error); };
+  no("an empty file is refused", new Uint8Array(0), /empty/);
+  no("plain text named like a picture is refused", new TextEncoder().encode("hello, I am not a picture"), /not a supported picture/);
+  no("an SVG is refused (it can carry script)", new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'), /SVG/);
+  no("HTML is refused", new TextEncoder().encode("<html><body><script>alert(1)</script></body></html>"), /not a supported picture/);
+  no("a PNG cut off after its signature is refused", bytes([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0]), /damaged|incomplete/);
+  no("a picture with no size is refused", pngHeader(0, 0), /no size/);
+  no("a side longer than 12000 px is refused", pngHeader(13000, 10), /too large/);
+  no("more than 100 megapixels is refused", pngHeader(11000, 11000), /too many pixels/);
+  check("a valid PNG header is read (640x480)", (() => { const r = sniffImage(pngHeader(640, 480)); return r.ok && r.image.mime === "image/png" && r.image.ext === "png" && r.image.width === 640 && r.image.height === 480; })());
+  check("GIF and JPEG headers are read", (() => {
+    const g = sniffImage(bytes([...new TextEncoder().encode("GIF89a"), 20, 0, 10, 0, 0, 0, 0]));
+    const j = sniffImage(bytes([0xff, 0xd8, 0xff, 0xc0, 0, 17, 8, 0, 100, 0, 200, 3, 1, 0x22, 0, 2, 0x11, 1, 3, 0x11, 1]));
+    return g.ok && g.image.width === 20 && g.image.height === 10 && j.ok && j.image.mime === "image/jpeg" && j.image.width === 200 && j.image.height === 100;
+  })());
+  check("a JPEG turned by EXIF (orientation 6) reports width and height swapped", (() => {
+    const exif = [...new TextEncoder().encode("Exif"), 0, 0, 0x49, 0x49, 0x2a, 0, 8, 0, 0, 0, 1, 0, 0x12, 0x01, 3, 0, 1, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0];
+    const j = sniffImage(bytes([0xff, 0xd8], [0xff, 0xe1, 0, exif.length + 2], exif, [0xff, 0xc0, 0, 17, 8, 0, 100, 0, 200, 3, 1, 0x22, 0, 2, 0x11, 1, 3, 0x11, 1]));
+    return j.ok && j.image.width === 100 && j.image.height === 200;
+  })());
+  check("an AVIF header is read (ispe box, 320x200) and a WebP header too", (() => {
+    const a = sniffImage(bytes(be32(24), [...new TextEncoder().encode("ftypavif")], [0, 0, 0, 0], [...new TextEncoder().encode("avifmif1")], be32(20), [...new TextEncoder().encode("ispe")], [0, 0, 0, 0], be32(320), be32(200)));
+    const lossless = sniffImage(bytes([...new TextEncoder().encode("RIFF"), 0, 0, 0, 0], [...new TextEncoder().encode("WEBPVP8L")], [0, 0, 0, 0], [0x2f], [0x3f, 0xc1, 0x31, 0x00])); // VP8L: (320 - 1) and (200 - 1) packed in 14 bits each
+    return a.ok && a.image.mime === "image/avif" && a.image.width === 320 && a.image.height === 200 && lossless.ok && lossless.image.mime === "image/webp" && lossless.image.width === 320 && lossless.image.height === 200;
+  })());
+  check("the size limit is 10 MB", MAX_BYTES === 10 * 1024 * 1024);
+
+  urls.configureMedia("", "0");
+  check("without a media domain an upload keeps its own path, shipped files too", urls.publicMediaUrl("/media/uploads/2026/10/a.webp") === "/media/uploads/2026/10/a.webp" && urls.publicMediaUrl("/assets/cases/orbit.webp") === "/assets/cases/orbit.webp");
+  urls.configureMedia("https://media.example.com/", "0");
+  check("with a media domain uploads load from it; shipped files do not move", urls.publicMediaUrl("/media/uploads/2026/10/a.webp") === "https://media.example.com/uploads/2026/10/a.webp" && urls.publicMediaUrl("/assets/cases/orbit.webp") === "/assets/cases/orbit.webp");
+  urls.configureMedia("http://insecure.example.com", "0");
+  check("a media domain that is not https is ignored", urls.publicMediaUrl("/media/uploads/a.webp") === "/media/uploads/a.webp");
+  urls.configureMedia("https://media.example.com", "1");
+  check("image transformations (when enabled) go through /cdn-cgi/image", urls.transformUrl("/media/uploads/a.webp", { width: 360 }) === "/cdn-cgi/image/width=360,quality=82,format=auto,fit=scale-down/https://media.example.com/uploads/a.webp");
+  urls.configureMedia("", "0");
+  check("transformations off: the original address", urls.transformUrl("/media/uploads/a.webp", { width: 360 }) === "/media/uploads/a.webp");
+}
+
+if (!readOnly) {
+  const NOW = "'2026-10-05T00:00:00.000Z'";
+  const ins = (sha) => `INSERT INTO media (id, slug, title, kind, mime, storage, url, r2_key, width, height, bytes, created_at, updated_at${sha ? ", sha256" : ""}) VALUES ('mx', 'mx', 'x', 'image', 'image/webp', 'r2', '/media/uploads/2026/10/x.webp', 'uploads/2026/10/x.webp', 10, 10, 100, ${NOW}, ${NOW}${sha ? ", " + sha : ""})`;
+  rejects("a media fingerprint must be 64 characters", ins("'abc'"), /CHECK/);
+  db.exec(ins(`'${"a".repeat(64)}'`));
+  check("an uploaded picture row keeps its object key and has caption and fingerprint columns", one("SELECT r2_key FROM media WHERE id = 'mx'").r2_key === "uploads/2026/10/x.webp" && one("SELECT caption c FROM media WHERE id = 'mx'").c === "" && one("SELECT sha256 s FROM media WHERE id = 'mx'").s.length === 64);
+  db.exec("DELETE FROM media WHERE id = 'mx'");
 }
 
 console.log(`\n${pass}/${pass + fail} checks passed${fail ? ` — ${fail} FAILED` : ""}`);
