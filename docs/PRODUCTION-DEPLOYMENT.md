@@ -1,18 +1,18 @@
 # Production deployment (Cloudflare Workers)
 
-How to put the site live, what Cloudflare resources it needs, and the exact commands. **Nothing has been deployed yet.** The application, configuration and checks are ready; the steps below need you (the domain, the secrets, the admin password).
+How to put the site live, what Cloudflare resources it needs, and the exact commands. **Deployed on 6 October 2026** to `https://visuolab-next.visuolab-48f.workers.dev` (Worker `visuolab-next`, version `d460a04d-79c4-4fa6-8213-10f9e1574c49`; migrations 0000–0014 and the seed applied to the production D1; admin `visuolab@gmail.com` created; `SESSION_SECRET` set). Still open: `RESEND_API_KEY` (no emails are sent until it is set), a custom domain, and optionally the media domain and Image Transformations.
 
 Run every command from `visuolab-next/`.
 
-## State of the Cloudflare account (read-only check, 6 October 2026)
+## State of the Cloudflare account (6 October 2026, after the first deploy)
 
 | Resource | Name / id | Status |
 |---|---|---|
 | Account | `48fa30c68a3fcf35323392af2c199e01` | token works (`wrangler whoami`) |
-| D1 database | `visuolab`, `09818a92-a4b7-4ec1-a009-740b8e353402` | **exists, empty** (0 tables): migrations and seed not applied |
+| D1 database | `visuolab`, `09818a92-a4b7-4ec1-a009-740b8e353402` | **in use**: 15 migrations applied, content seeded (4 services, 8 case studies, 6 articles, 28 media rows), 1 admin user |
 | R2 bucket | `visuolab-media` | **exists** |
-| Worker | `visuolab-next` | **not deployed** |
-| Secrets | `SESSION_SECRET`, `RESEND_API_KEY`, … | **not set** (the Worker does not exist yet) |
+| Worker | `visuolab-next` | **deployed** (workers.dev address above) |
+| Secrets | `SESSION_SECRET` set; `RESEND_API_KEY` and the optional ones not set | |
 | Custom domain, media domain, Image Transformations, Resend sender domain | – | not configured (need your domain) |
 
 ## What the Worker needs
@@ -68,7 +68,7 @@ Remove-Item Env:ADMIN_PASSWORD
 ADMIN_EMAIL=you@yourdomain.com ADMIN_NAME="Your Name" ADMIN_PASSWORD='a long unique password' npm run admin:create -- --remote
 ```
 
-Do not reuse a development or chat-shared password. The admin sits at `/admin`; consider putting **Cloudflare Access** (one-time PIN or SSO with MFA) in front of `/admin/*` and `/api/admin/*` (see `SECURITY-AUDIT.md`, SEC-08).
+Do not reuse a development or chat-shared password. **Password hashing is PBKDF2 with 100,000 iterations, the most the Workers runtime accepts** (the first live sign-in failed with 600,000; see `SECURITY-AUDIT.md`, SEC-10). Hashes made by an older version of `admin:create` must be re-created. The admin sits at `/admin`; consider putting **Cloudflare Access** (one-time PIN or SSO with MFA) in front of `/admin/*` and `/api/admin/*` (see `SECURITY-AUDIT.md`, SEC-08).
 
 ### 4. Pre-flight check (deploys nothing)
 
@@ -169,3 +169,7 @@ Logs: `npx wrangler tail --env production` (live), or Dashboard → Workers & Pa
 | Deploy guard | `npm run deploy:check` | correctly **refuses** to deploy: `SITE_URL` is still a placeholder, and the remote D1 has no migrations applied |
 
 The preview runs the same Worker code against local copies of D1 and R2; the live bindings, secrets, domain and TLS can only be checked after you deploy, with the commands above.
+
+## First deploy: what happened
+
+The first deploy succeeded (`Success! Uploaded 231 files`, Worker startup 23 ms) and every route, `/api/health` (D1 and R2 ok), the security headers and the page cache (`X-Edge-Cache: HIT`) worked on the live address. Sign-in then failed on the live Worker only: `NotSupportedError: Pbkdf2 failed: iteration counts above 100000 are not supported`. The iteration count was lowered to 100,000, the admin was re-created, and the Worker redeployed. Verified on the live address afterwards: sign-in (`__Host-vl_session`, Secure, HttpOnly), the admin screens, a picture upload to R2 and its removal, and a contact-form enquiry (the test enquiry was deleted).

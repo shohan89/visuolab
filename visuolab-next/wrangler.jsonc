@@ -35,7 +35,7 @@
       "workers_dev": true,
       "preview_urls": false,
       "vars": {
-        "SITE_URL": "https://REPLACE-WITH-YOUR-DOMAIN",
+        "SITE_URL": "https://visuolab-next.visuolab-48f.workers.dev",
         "MEDIA_BASE_URL": "",
         "IMAGE_TRANSFORMS": "0",
         "EDGE_CACHE": "1"

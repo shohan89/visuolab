@@ -6,7 +6,7 @@
 //   --preview   the local database used by `npm run preview`
 //   --remote    the live database. Check `npx wrangler whoami` first.
 //
-// The password is hashed here (PBKDF2-SHA256, 600,000 iterations, random salt, same format as src/lib/server/crypto.ts); only the
+// The password is hashed here (PBKDF2-SHA256, 100,000 iterations, random salt, same format as src/lib/server/crypto.ts); only the
 // hash is written to the database. Do not commit the password and do not paste it into chats or tickets.
 import { execFileSync } from "node:child_process";
 import { randomUUID, webcrypto as crypto } from "node:crypto";
@@ -20,7 +20,7 @@ const password = process.env.ADMIN_PASSWORD ?? "";
 if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { console.error("Set ADMIN_EMAIL to a valid address."); process.exit(1); }
 if (password.length < 12) { console.error("Set ADMIN_PASSWORD (at least 12 characters)."); process.exit(1); }
 
-const iterations = 600_000;
+const iterations = 100_000; // the Workers runtime refuses more than 100,000
 const salt = crypto.getRandomValues(new Uint8Array(16));
 const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveBits"]);
 const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt, iterations }, key, 256);

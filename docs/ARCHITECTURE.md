@@ -14,7 +14,7 @@ Decisions made here that update earlier notes:
 
 | Topic | Decision | Reason |
 |---|---|---|
-| Password hashing | PBKDF2-SHA256 through WebCrypto (600,000 iterations), not scrypt | Native and fast on Workers. `scrypt` in `node:crypto` is pure CPU time. `scripts/hash-password.mjs` must be changed to PBKDF2 before use. |
+| Password hashing | PBKDF2-SHA256 through WebCrypto (100,000 iterations), not scrypt | Native and fast on Workers. `scrypt` in `node:crypto` is pure CPU time. `scripts/hash-password.mjs` must be changed to PBKDF2 before use. |
 | `/services` | Route exists but **redirects (308) to `/#services`** | The original site has no services overview page. The nav item is a button that only opens the mega menu. Building a listing page would invent new UI. |
 | Rich text | Tiptap, stored as JSON, rendered by an allow-list React renderer | No raw HTML stored or injected. Output maps to the existing `.prose` styles. |
 | Images | Plain `<img>` with pre-sized WebP, served from R2 | Keeps crops, `object-position` and sizes identical. `next/image` optimizer is not used. Cloudflare Images transforms are an optional later step. |
@@ -253,7 +253,7 @@ Statuses: `draft | published | scheduled | archived`. Scheduled publish is evalu
 
 Scope: one admin login at `/admin/login` (email + password). Custom sessions, no third-party auth library.
 
-- **Credentials:** `admin_users` row created by a one-off seed script from the `ADMIN_EMAIL` var and an `ADMIN_PASSWORD_HASH` secret. Hash format: `pbkdf2$sha256$600000$<salt b64>$<hash b64>`. Constant-time compare. The password is never stored or logged.
+- **Credentials:** `admin_users` row created by a one-off seed script from the `ADMIN_EMAIL` var and an `ADMIN_PASSWORD_HASH` secret. Hash format: `pbkdf2$sha256$100000$<salt b64>$<hash b64>`. Constant-time compare. The password is never stored or logged.
 - **Session:** on login, generate 32 random bytes, store `SHA-256(token)` in `sessions`, set cookie `__Host-vl_session` with `HttpOnly; Secure; SameSite=Lax; Path=/`. Idle expiry 12 h (sliding), absolute 14 days. Logout deletes the row. Changing the password revokes all sessions.
 - **Rate limiting:** `login_attempts` keyed by hashed IP and by email. 5 failures in 15 minutes locks that key for 15 minutes. Same generic error for wrong email and wrong password. A fixed minimum response time avoids user enumeration by timing.
 - **Optional hardening:** Turnstile on login after 3 failures; TOTP second factor (`admin_users.totp_secret`) is a planned extension, not v1.

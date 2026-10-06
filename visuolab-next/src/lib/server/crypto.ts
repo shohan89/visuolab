@@ -25,7 +25,8 @@ export function randomToken(bytes = 32): string {
   return toHex(crypto.getRandomValues(new Uint8Array(bytes)));
 }
 
-const PBKDF2_ITERATIONS = 600_000;
+// 100,000 is the most Cloudflare Workers accept ("iteration counts above 100000 are not supported"); a higher count fails at sign-in on the live Worker
+const PBKDF2_ITERATIONS = 100_000;
 
 /** Hash format: pbkdf2$sha256$<iterations>$<salt b64>$<hash b64> */
 export async function hashPassword(password: string, iterations = PBKDF2_ITERATIONS): Promise<string> {

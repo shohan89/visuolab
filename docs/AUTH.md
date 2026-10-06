@@ -9,7 +9,7 @@ Files: `src/lib/server/auth.ts` (sessions, `requireAdmin`), `src/lib/server/cryp
 | Requirement | Implementation |
 |---|---|
 | Admin login | `/admin/login`; e-mail + password, looked up in `users` (case-insensitive e-mail). A wrong e-mail, a wrong password and a disabled user give the same message and take the same time (a dummy PBKDF2 check runs when the user does not exist). |
-| Password hashing | PBKDF2-SHA256, 600,000 iterations, random 16-byte salt per password, constant-time compare. Stored as `pbkdf2$sha256$600000$<salt>$<hash>`. Plain passwords are never stored or logged. |
+| Password hashing | PBKDF2-SHA256, 100,000 iterations, random 16-byte salt per password, constant-time compare. Stored as `pbkdf2$sha256$100000$<salt>$<hash>`. Plain passwords are never stored or logged. |
 | Secure sessions | Random 256-bit token in the cookie; the database stores only its SHA-256 (`sessions.id`), so a database leak does not give working cookies. A new token on every sign-in (no session fixation). |
 | Session expiry | 12 hours without activity, and never longer than 14 days after sign-in. Both limits are checked on the server on every request; an expired row is deleted. Expired rows are also removed at each sign-in. A disabled user's sessions stop working at once. |
 | Secure cookies | `HttpOnly`, `SameSite=Lax`, `Path=/`, `Secure` and the `__Host-` prefix (name `__Host-vl_session`) whenever `SITE_URL` is https. Plain-http local development uses `vl_session` without `Secure`. |

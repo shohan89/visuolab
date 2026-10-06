@@ -68,7 +68,7 @@ Type notes: all `TEXT` unless shown; `NN` = NOT NULL. Defaults in brackets.
 ### users, sessions
 | users | |
 |---|---|
-| `id` PK, `email` NN **unique, case-insensitive**, `name` NN, `password_hash` NN (`pbkdf2$sha256$600000$salt$hash`), `role` NN [`editor`] (`admin` / `editor`), `status` NN [`active`] (`active` / `disabled`), `last_login_at`, `created_at` NN, `updated_at` NN | |
+| `id` PK, `email` NN **unique, case-insensitive**, `name` NN, `password_hash` NN (`pbkdf2$sha256$100000$salt$hash`), `role` NN [`editor`] (`admin` / `editor`), `status` NN [`active`] (`active` / `disabled`), `last_login_at`, `created_at` NN, `updated_at` NN | |
 
 | sessions | |
 |---|---|
@@ -191,7 +191,7 @@ npm run db:verify:local           # read-only check of the local D1
 ADMIN_EMAIL=you@example.com ADMIN_NAME="Your Name" ADMIN_PASSWORD='a long password' npm run admin:create
 ```
 
-`admin:create` hashes the password on your machine (PBKDF2, 600,000 rounds) and writes only the hash; run it again with the same e-mail to reset the password (it also signs that user out). Add `--preview` for the database of `npm run preview` or `--remote` for the live one.
+`admin:create` hashes the password on your machine (PBKDF2, 100,000 rounds) and writes only the hash; run it again with the same e-mail to reset the password (it also signs that user out). Add `--preview` for the database of `npm run preview` or `--remote` for the live one.
 
 **Live database** (not done yet; needs the Visuolab Cloudflare account): `npm run db:migrate:remote`, then `npm run db:seed:remote`, then `admin:create --remote`, then deploy. D1 keeps point-in-time history (Time Travel); note a bookmark before each production migration (`npx wrangler d1 time-travel info visuolab`).
 
