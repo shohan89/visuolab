@@ -17,6 +17,17 @@ const newest = (dates: (string | undefined)[]) => dates.filter((d): d is string 
  * and live articles, each with the time it last changed. Empty when indexing is switched off for the whole site.
  */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  try {
+    return await build();
+  } catch (e) {
+    // the database could not be read: answer with the fixed pages instead of an error page (and never the error text)
+    console.error("sitemap failed:", e instanceof Error ? e.name : "unknown error");
+    const site = await getSiteUrl();
+    return SEO_PAGES.map((k) => ({ url: `${site}${PATHS[k]}`, priority: PRIORITY[k] }));
+  }
+}
+
+async function build(): Promise<MetadataRoute.Sitemap> {
   const [site, cfg] = await Promise.all([getSiteUrl(), getSiteConfig()]);
   if (!cfg.seo.indexing) return [];
   const db = getDb();

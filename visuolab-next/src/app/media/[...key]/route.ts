@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { safeRoute } from "@/lib/server/safe";
 
 export const dynamic = "force-dynamic";
 
@@ -27,5 +28,5 @@ async function serve(request: Request, ctx: { params: Promise<{ key: string[] }>
   return new Response(head ? null : object.body, { status: 200, headers });
 }
 
-export const GET = (request: Request, ctx: { params: Promise<{ key: string[] }> }) => serve(request, ctx, false);
-export const HEAD = (request: Request, ctx: { params: Promise<{ key: string[] }> }) => serve(request, ctx, true);
+export const GET = safeRoute((request: Request, ctx: { params: Promise<{ key: string[] }> }) => serve(request, ctx, false));
+export const HEAD = safeRoute((request: Request, ctx: { params: Promise<{ key: string[] }> }) => serve(request, ctx, true));

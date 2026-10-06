@@ -1,3 +1,4 @@
+import { safeRoute } from "@/lib/server/safe";
 import { audit } from "@/lib/server/audit";
 import { listMedia, uploadImage } from "@/lib/server/media";
 import { guardApi, json, readUpload, toPublic, uploadAllowed } from "@/lib/server/media-api";
@@ -5,7 +6,7 @@ import { guardApi, json, readUpload, toPublic, uploadAllowed } from "@/lib/serve
 export const dynamic = "force-dynamic";
 
 /** List or search the media library (admin only). `?id=` returns one file. Used by the library and by the MediaPicker. */
-export async function GET(request: Request) {
+async function getHandler(request: Request) {
   const auth = await guardApi({ write: false });
   if ("response" in auth) return auth.response;
   const q = new URL(request.url).searchParams;
@@ -24,7 +25,7 @@ export async function GET(request: Request) {
 }
 
 /** Upload one picture (multipart field "file"; optional "title", "alt", "caption"). The browser never sees storage credentials: the Worker writes to R2. */
-export async function POST(request: Request) {
+async function postHandler(request: Request) {
   const auth = await guardApi({ write: true });
   if ("response" in auth) return auth.response;
   if (!(await uploadAllowed(auth.admin.id))) return json({ error: "Too many uploads this hour. Try again later." }, 429);
@@ -36,3 +37,6 @@ export async function POST(request: Request) {
   if (!res.duplicate) await audit({ action: "media.upload", userId: auth.admin.id, userEmail: auth.admin.email, entityType: "media", entityId: res.item.id, summary: `Uploaded "${res.item.title}" (${res.item.mime}, ${res.item.bytes} bytes)` });
   return json({ item: toPublic(res.item), duplicate: res.duplicate }, res.duplicate ? 200 : 201);
 }
+
+export const GET = safeRoute(getHandler);
+export const POST = safeRoute(postHandler);

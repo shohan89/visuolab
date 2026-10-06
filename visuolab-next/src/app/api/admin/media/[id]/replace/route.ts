@@ -1,3 +1,4 @@
+import { safeRoute } from "@/lib/server/safe";
 import { audit } from "@/lib/server/audit";
 import { replaceImage } from "@/lib/server/media";
 import { guardApi, json, readUpload, toPublic, uploadAllowed } from "@/lib/server/media-api";
@@ -5,7 +6,7 @@ import { guardApi, json, readUpload, toPublic, uploadAllowed } from "@/lib/serve
 export const dynamic = "force-dynamic";
 
 /** Replace the picture behind a media file (multipart field "file"). The file keeps its id, so every page that uses it follows. */
-export async function POST(request: Request, ctx: { params: Promise<{ id: string }> }) {
+async function postHandler(request: Request, ctx: { params: Promise<{ id: string }> }) {
   const auth = await guardApi({ write: true });
   if ("response" in auth) return auth.response;
   const { id } = await ctx.params;
@@ -18,3 +19,5 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
   await audit({ action: "media.replace", userId: auth.admin.id, userEmail: auth.admin.email, entityType: "media", entityId: id, summary: `Replaced the file of "${res.item.title}" (${res.item.mime}, ${res.item.bytes} bytes)` });
   return json({ item: toPublic(res.item) });
 }
+
+export const POST = safeRoute(postHandler);

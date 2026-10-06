@@ -6,7 +6,12 @@ import { getSiteUrl } from "@/lib/site";
 export const dynamic = "force-dynamic";
 
 export default async function robots(): Promise<MetadataRoute.Robots> {
-  const [site, c] = await Promise.all([getSiteUrl(), getSiteConfig()]);
+  const site = await getSiteUrl();
+  const c = await getSiteConfig().catch((e) => {
+    console.error("robots settings unreadable:", e instanceof Error ? e.name : "unknown error"); // the database is down: fall back to the default rules
+    return null;
+  });
+  if (!c) return { rules: [{ userAgent: "*", allow: "/", disallow: ["/admin"] }], sitemap: `${site}/sitemap.xml` };
   const { indexing, disallow, sitemap } = c.seo;
   // the admin area is never offered to search engines, whatever the settings say
   const blocked = indexing ? [...new Set(["/admin", ...disallow])] : ["/"];
