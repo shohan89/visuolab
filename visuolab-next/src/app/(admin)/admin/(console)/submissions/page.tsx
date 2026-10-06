@@ -1,8 +1,9 @@
 import Link from "@/components/site/ui/Link";
-import { changeStatus, removeSubmission } from "@/actions/admin";
+import { changeStatus, removeSubmission, resendNotification } from "@/actions/admin";
+import { describe } from "@/lib/integrations/email/delivery";
 import SubmitButton from "@/components/admin/SubmitButton";
 import { requireAdmin } from "@/lib/server/auth";
-import { STATUSES, countsByStatus, listSubmissions, type SubmissionStatus } from "@/lib/server/submissions";
+import { STATUSES, countNotifyProblems, countsByStatus, listSubmissions, type SubmissionStatus } from "@/lib/server/submissions";
 
 const PAGE_SIZE = 25;
 const TABS: { key: SubmissionStatus | "all"; label: string }[] = [
@@ -23,15 +24,16 @@ const NEXT_STEPS: Record<SubmissionStatus, { to: SubmissionStatus; label: string
 
 const when = (iso: string) => new Date(iso).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" }) + " UTC";
 
-export default async function SubmissionsPage({ searchParams }: { searchParams: Promise<{ status?: string; page?: string }> }) {
+export default async function SubmissionsPage({ searchParams }: { searchParams: Promise<{ status?: string; page?: string; notify?: string }> }) {
   await requireAdmin();
   const sp = await searchParams;
   const status = (STATUSES as readonly string[]).includes(sp.status ?? "") ? (sp.status as SubmissionStatus) : "all";
   const page = Math.max(1, Number.parseInt(sp.page ?? "1", 10) || 1);
-  const [{ items, total }, counts] = await Promise.all([listSubmissions({ status, limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE }), countsByStatus()]);
+  const notify = sp.notify === "problems" ? "problems" : "all";
+  const [{ items, total }, counts, problems] = await Promise.all([listSubmissions({ status, notify, limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE }), countsByStatus(), countNotifyProblems()]);
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const here = `/admin/submissions?${new URLSearchParams({ ...(status !== "all" ? { status } : {}), ...(page > 1 ? { page: String(page) } : {}) })}`;
-  const href = (s: string, p = 1) => `/admin/submissions?${new URLSearchParams({ ...(s !== "all" ? { status: s } : {}), ...(p > 1 ? { page: String(p) } : {}) })}`;
+  const here = `/admin/submissions?${new URLSearchParams({ ...(status !== "all" ? { status } : {}), ...(notify === "problems" ? { notify } : {}), ...(page > 1 ? { page: String(page) } : {}) })}`;
+  const href = (s: string, p = 1, n: string = notify) => `/admin/submissions?${new URLSearchParams({ ...(s !== "all" ? { status: s } : {}), ...(n === "problems" ? { notify: n } : {}), ...(p > 1 ? { page: String(p) } : {}) })}`;
 
   return (
     <>
@@ -42,6 +44,10 @@ export default async function SubmissionsPage({ searchParams }: { searchParams: 
           <Link href={href(t.key)} aria-current={status === t.key ? "page" : undefined} key={t.key}>{t.label} <i>{counts[t.key]}</i></Link>
         ))}
       </nav>
+      <p className="notify-filter">
+        {notify === "problems" ? <Link href={href(status, 1, "all")}>← Show all notifications</Link> : <Link href={href(status, 1, "problems")} className={problems ? "has-problems" : undefined}>Notification problems <i>{problems}</i></Link>}
+        <span className="hint"> Enquiries whose notification email failed or was never sent.</span>
+      </p>
 
       {items.length === 0 ? (
         <div className="empty-state"><b>No submissions here</b><p>{status === "all" ? "Messages from the contact form will appear here." : `Nothing is marked “${status}” right now.`}</p></div>
@@ -59,7 +65,7 @@ export default async function SubmissionsPage({ searchParams }: { searchParams: 
                 {s.company && <span><b>Company</b> {s.company}</span>}
                 {s.service && <span><b>Needs</b> {s.service}</span>}
                 {s.budget && <span><b>Budget</b> {s.budget}</span>}
-                <span><b>Mail</b> {s.notifiedAt ? "sent" : s.notifyError ?? "—"}</span>
+                <span className="meta-notify"><b>Notification</b> <span className={`badge n-${s.notifyStatus}`}>{s.notifyStatus}</span> <small>{describe(s.notifyStatus, s.notifyError)}{s.notifiedAt ? ` · ${when(s.notifiedAt)}` : ""}{s.notifyAttempts > 0 ? ` · ${s.notifyAttempts} ${s.notifyAttempts === 1 ? "attempt" : "attempts"}` : ""}{s.notifyProvider ? ` · ${s.notifyProvider}` : ""}</small></span>
               </p>
               <p className="message">{s.message}</p>
               <div className="actions">
@@ -71,6 +77,13 @@ export default async function SubmissionsPage({ searchParams }: { searchParams: 
                     <SubmitButton>{n.label}</SubmitButton>
                   </form>
                 ))}
+                {s.status !== "spam" && (
+                  <form action={resendNotification}>
+                    <input type="hidden" name="id" value={s.id} />
+                    <input type="hidden" name="back" value={here} />
+                    <SubmitButton>{s.notifyStatus === "sent" ? "Send notification again" : "Send notification"}</SubmitButton>
+                  </form>
+                )}
                 <form action={removeSubmission}>
                   <input type="hidden" name="id" value={s.id} />
                   <input type="hidden" name="back" value={here} />

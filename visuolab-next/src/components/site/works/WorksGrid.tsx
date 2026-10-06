@@ -4,6 +4,7 @@ import Link from "@/components/site/ui/Link";
 import { matchesFilter, useFilter } from "@/components/motion/Filter";
 import type { CaseStudy } from "@/content/types";
 import { st } from "@/lib/css";
+import Img from "@/components/site/ui/Img";
 
 /**
  * The works grid. Filtering hides non-matching cards (.is-hidden) and marks matching ones .in, exactly like the
@@ -21,7 +22,8 @@ export default function WorksGrid({ cases }: { cases: CaseStudy[] }) {
           return (
             <Link className={`wcard reveal${state}`} style={st({ "--i": i % 2 })} href={`/works/${c.slug}`} data-tags={c.card.filters.join(" ")} key={c.slug}>
               <div className="wcard-media">
-                <img src={c.card.image.src} alt={c.card.image.alt} loading="lazy" />
+                {/* the first row is on the first screen: loaded at once, the first picture ahead of the rest; the others wait until they are near */}
+                <Img src={c.card.image.src} alt={c.card.image.alt} {...(i < 2 ? (i === 0 ? { fetchPriority: "high" as const } : {}) : { loading: "lazy" as const })} />
                 <span className="case-open" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 17L17 7M9 7h8v8" /></svg></span>
               </div>
               <div className="wcard-body">

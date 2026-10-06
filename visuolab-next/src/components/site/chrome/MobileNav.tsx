@@ -3,7 +3,8 @@
 import Link from "@/components/site/ui/Link";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type RefObject } from "react";
 import { createPortal } from "react-dom";
-import { contactEmail, cta, mainLinks, promo, serviceGroups } from "@/content/nav";
+import { cta, mainLinks, promo, serviceGroups } from "@/content/nav";
+import { useSiteConfig } from "@/components/site/SiteConfigProvider";
 import { st } from "@/lib/css";
 import { prefersReducedMotion } from "@/lib/motion/scroll";
 import { useLenis } from "@/components/motion/SiteMotion";
@@ -15,6 +16,7 @@ import Brand from "./Brand";
  * Escape handling and Lenis pause as js/main.js — but built from the shared nav data and React state.
  */
 export default function MobileNav({ open, onClose, returnFocusTo }: { open: boolean; onClose: () => void; returnFocusTo: RefObject<HTMLButtonElement | null> }) {
+  const site = useSiteConfig();
   const lenis = useLenis();
   const panel = useRef<HTMLDivElement>(null);
   const closeBtn = useRef<HTMLButtonElement>(null);
@@ -135,7 +137,7 @@ export default function MobileNav({ open, onClose, returnFocusTo }: { open: bool
       </nav>
       <div className="mnav-foot wrap" style={st({ "--i": i })}>
         <Pill className="mnav-cta" href={cta.href}>{cta.label}</Pill>
-        <a className="mnav-mail" href={`mailto:${contactEmail}`}>{contactEmail}</a>
+        <a className="mnav-mail" href={`mailto:${site.email}`}>{site.email}</a>
       </div>
     </div>,
     document.body,

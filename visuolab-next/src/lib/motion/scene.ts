@@ -94,17 +94,32 @@ function init(host: HTMLElement): () => void {
   band.rotation.set(1.42, 0, 0); // almost face-on so the silhouette stays big
   group.add(band);
 
-  /* ---- regenerate the band surface for a new twist phase ------------------ */
+  /* ---- regenerate the band surface for a new twist phase ------------------
+          Same surface as surf() above, but only the twist changes from frame to frame, and the twist enters as cos/sin of (1.5·θ + phase).
+          Those split into products of per-ring values (computed once) and cos/sin of the phase (computed once per frame), so a frame
+          costs a few multiplications per vertex instead of six trigonometric calls: about 12,000 vertices at 60 frames a second. ---- */
   const pos = geo.attributes.position as THREE.BufferAttribute;
-  const tmp = new THREE.Vector3();
+  const out = pos.array as Float32Array;
+  const cosTh = new Float64Array(SL + 1), sinTh = new Float64Array(SL + 1), cos15 = new Float64Array(SL + 1), sin15 = new Float64Array(SL + 1);
+  for (let l = 0; l <= SL; l++) {
+    const th = (l / SL) * Math.PI * 2;
+    cosTh[l] = Math.cos(th); sinTh[l] = Math.sin(th); cos15[l] = Math.cos(th * 1.5); sin15[l] = Math.sin(th * 1.5);
+  }
+  const ex = new Float64Array(ST + 1), ey = new Float64Array(ST + 1);
+  for (let t = 0; t <= ST; t++) { const ph = (t / ST) * Math.PI * 2; ex[t] = A * Math.cos(ph); ey[t] = B * Math.sin(ph); }
   function reshape(p: number) {
     phase = p;
+    const cp = Math.cos(p), sp = Math.sin(p);
     let i = 0;
-    for (let s = 0; s <= ST; s++) {
-      const v = s / ST;
+    for (let t = 0; t <= ST; t++) {
+      const exv = ex[t]!, eyv = ey[t]!;
       for (let l = 0; l <= SL; l++) {
-        surf(l / SL, v, tmp);
-        pos.setXYZ(i++, tmp.x, tmp.y, tmp.z);
+        const cpsi = cos15[l]! * cp - sin15[l]! * sp; // cos(1.5·θ + phase)
+        const spsi = sin15[l]! * cp + cos15[l]! * sp; // sin(1.5·θ + phase)
+        const r = R + exv * cpsi - eyv * spsi;
+        out[i++] = r * cosTh[l]!;
+        out[i++] = exv * spsi + eyv * cpsi;
+        out[i++] = r * sinTh[l]!;
       }
     }
     pos.needsUpdate = true;

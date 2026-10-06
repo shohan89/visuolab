@@ -10,6 +10,7 @@ import SvgIcon from "@/components/site/ui/SvgIcon";
 import type { ServiceSeed } from "@/content/types";
 import { st } from "@/lib/css";
 import ServiceReviews from "./ServiceReviews";
+import Img from "@/components/site/ui/Img";
 
 /**
  * A service detail page. The four services share one layout, so one component renders any ServiceSeed.
@@ -36,7 +37,7 @@ export default function ServicePage({ service: s }: { service: ServiceSeed }) {
               <div className="svc-shot reveal" style={st({ "--i": 1 })} aria-hidden="true">
                 {s.hero.shots.map((img, i) => (
                   <figure className={i === 0 ? "a" : "b"} key={img.src}>
-                    <img
+                    <Img
                       src={img.src}
                       alt={img.alt}
                       width={img.width}

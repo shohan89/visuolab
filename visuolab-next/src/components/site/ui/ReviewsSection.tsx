@@ -3,6 +3,7 @@ import CarouselNav from "@/components/motion/CarouselNav";
 import Aurora from "@/components/site/ui/Aurora";
 import { reviews } from "@/content/reviews";
 import { st } from "@/lib/css";
+import Img from "@/components/site/ui/Img";
 
 type Props = {
   /** Section classes, which decide the surface (dark service version, works version, ...) */
@@ -35,7 +36,7 @@ export default function ReviewsSection({ className, id, ariaLabelledBy, label, t
           {reviews.map((r) => (
             <article className="review-card" key={r.name}>
               <div className="top">
-                <img className="avatar" src={r.avatar} alt="" />
+                <Img className="avatar" loading="lazy" src={r.avatar} alt="" />
                 <span className="logo"><i style={r.dot ? { background: r.dot } : undefined}></i>{r.company}</span>
               </div>
               <span className="mark" aria-hidden="true">“</span>

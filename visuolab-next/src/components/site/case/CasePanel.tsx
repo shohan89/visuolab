@@ -1,6 +1,7 @@
 import Link from "@/components/site/ui/Link";
 import type { CaseCardSeed } from "@/content/types";
 import Rich from "@/components/site/ui/Rich";
+import Img from "@/components/site/ui/Img";
 
 /** One sticky case panel (.case). Two variants as in the original: a client quote, or a "Results" list. */
 export default function CasePanel({ item }: { item: CaseCardSeed }) {
@@ -17,7 +18,7 @@ export default function CasePanel({ item }: { item: CaseCardSeed }) {
               <div className="src">{item.quote.source} <span className="stars">★★★★★</span></div>
               <q>{item.quote.text}</q>
               <div className="who">
-                <img className="avatar" src={item.quote.avatar} alt="" />
+                <Img className="avatar" loading="lazy" src={item.quote.avatar} alt="" />
                 <div><b>{item.quote.name}</b><span>{item.quote.role}</span></div>
               </div>
             </div>
@@ -34,7 +35,7 @@ export default function CasePanel({ item }: { item: CaseCardSeed }) {
           )}
         </div>
         <div className="case-media">
-          <img src={item.image.src} alt={item.image.alt} loading="lazy" />
+          <Img src={item.image.src} alt={item.image.alt} loading="lazy" />
           <span className="case-open" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 17L17 7M9 7h8v8" /></svg></span>
         </div>
       </Link>

@@ -6,6 +6,7 @@ import type { BlogPost } from "@/content/types";
 import { st } from "@/lib/css";
 import { formatDate } from "@/lib/dates";
 import BlogGrid from "./BlogGrid";
+import Img from "@/components/site/ui/Img";
 
 /**
  * The blog index: heading, topic chips, the featured article, then the grid of the others. `posts` are the live articles, newest first;
@@ -35,7 +36,7 @@ export default function BlogListing({ posts, topics }: { posts: BlogPost[]; topi
           <section className="featured-sec" aria-label="Latest article">
             <div className="wrap">
               <Link className="featured reveal" href={`/blog/${featured.slug}`}>
-                <div className="img"><img src={featured.cover.src} alt={featured.cover.alt} loading="lazy" /></div>
+                <div className="img"><Img sizes="(max-width: 900px) 100vw, 640px" src={featured.cover.src} alt={featured.cover.alt} fetchPriority="high" /></div>
                 <div className="body">
                   <p className="post-meta"><span className="cat">{featured.category}</span><span>{formatDate(featured.publishedAt)}</span><span>{`${featured.readMinutes} min read`}</span></p>
                   <h2>{featured.title}</h2>

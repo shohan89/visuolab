@@ -1,0 +1,12 @@
+# Static files are served by Cloudflare straight from the deployed bundle. (vinext writes this file only when it does not exist, so the
+# build-output rule is repeated here.)
+/_next/static/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Self-hosted fonts: file names carry a content hash, so they never change under the same address.
+/fonts/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Pictures and the showreel keep their names when they are replaced, so they are cached for a week and refreshed in the background after that.
+/assets/*
+  Cache-Control: public, max-age=604800, stale-while-revalidate=86400

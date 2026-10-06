@@ -252,6 +252,9 @@ setting("site.footer", "Footer: newsletter, legal, social, badges", {
   badges: findAll(footer, cls("badge-card")).map((b) => ({ mark: ["clutch", "dribbble", "awwwards", "webflow", "goodfirms", "behance"][findAll(footer, cls("badge-card")).indexOf(b)], text: kids(find(b, tag("p"))).map((n) => (n.type === "text" ? n.data : " ")).join("").replace(/\s+/g, " ").trim() })),
 });
 
+// the site settings the admin edits (Settings screen): the values the website used before settings existed, public-safe only
+const { DEFAULTS, SECTION_TITLES, SETTINGS_KEYS } = await import("../../src/lib/settings/schema.ts");
+for (const name of Object.keys(SETTINGS_KEYS)) setting(SETTINGS_KEYS[name], SECTION_TITLES[name], DEFAULTS[name]);
 section("site_settings: JSON documents");
 settings.forEach((s) => insert("site_settings", { id: q(`set_${s.key.replace(/\./g, "_")}`), key: q(s.key), title: q(s.title), status: q("published"), value_json: j(s.value), created_at: q(SEED_AT), updated_at: q(SEED_AT), updated_by: "NULL" }));
 
@@ -280,9 +283,9 @@ footerCols.forEach((col, i) => {
 // ---- 7. integrations --------------------------------------------------------------------------------------------
 section("integrations (no secret is stored: secret_name is the name of the Worker secret)");
 [
-  ["resend", "Resend (notification e-mail)", "disabled", { from: "Visuolab <onboarding@resend.dev>", to: "visuolab@gmail.com" }, "RESEND_API_KEY"],
+  ["resend", "Resend (notification e-mail)", "enabled", { provider: "resend", from: "Visuolab <onboarding@resend.dev>", to: ["visuolab@gmail.com"] }, "RESEND_API_KEY"], // enabled: with no RESEND_API_KEY nothing is sent (the enquiry is still stored)
   ["turnstile", "Cloudflare Turnstile (spam check)", "disabled", {}, "TURNSTILE_SECRET"],
-  ["analytics", "Analytics", "disabled", {}, null],
+  ["analytics", "Analytics (Google Analytics, Tag Manager, Meta Pixel)", "disabled", { ga4: "", gtm: "", metaPixel: "" }, null],
 ].forEach(([slug, title, status, config, secret]) => insert("integrations", { id: q(`int_${slug}`), slug: q(slug), title: q(title), status: q(status), config_json: j(config), secret_name: q(secret), last_checked_at: "NULL", last_error: "NULL", created_at: q(SEED_AT), updated_at: q(SEED_AT), updated_by: "NULL" }));
 
 // ---- write ---------------------------------------------------------------------------------------------------

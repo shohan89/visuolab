@@ -36,7 +36,10 @@ export async function uploadAllowed(adminId: string): Promise<boolean> {
  * before it is read, and again on the bytes. Returns the file or the response to send.
  */
 export async function readUpload(request: Request): Promise<{ file: { name: string; bytes: Uint8Array }; form: FormData } | { response: Response }> {
-  const length = Number(request.headers.get("content-length") ?? "0");
+  const declared = request.headers.get("content-length");
+  // a body with no declared size (chunked) cannot be checked before it is read, so it is refused: browsers always declare it for a FormData upload
+  if (declared === null || declared.trim() === "" || !Number.isInteger(Number(declared)) || Number(declared) < 0) return { response: json({ error: "The upload must declare its size." }, 411) };
+  const length = Number(declared);
   if (length > MAX_BYTES + 1024 * 1024) return { response: json({ error: `The upload is too large. The limit is ${MAX_BYTES / 1048576} MB per picture.` }, 413) };
   let form: FormData;
   try {

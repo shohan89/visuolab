@@ -195,7 +195,7 @@ code{background:var(--a-bg);padding:1px 6px;border-radius:5px;font-size:.92em}
 .star.on{color:#e0a100}
 .toolbar select{padding:8px 10px;border:1px solid var(--a-line);border-radius:8px;font:inherit;background:#fff}
 /* ---- blog editor ---- */
-.subnav{display:flex;gap:4px;margin:4px 0 16px;border-bottom:1px solid var(--a-line)}
+.subnav{display:flex;flex-wrap:wrap;gap:4px;margin:4px 0 16px;border-bottom:1px solid var(--a-line)}
 .subnav a{padding:8px 14px;text-decoration:none;color:var(--a-muted);border-bottom:2px solid transparent;margin-bottom:-1px}
 .subnav a[aria-current=page]{color:var(--a-ink);border-color:var(--a-brand);font-weight:600}
 .badge.scheduled{background:#fff6dd;border-color:#ecd48c}
@@ -263,3 +263,27 @@ dialog.picker::backdrop{background:rgba(20,21,26,.55)}
 .picker-grid .p-meta{font-size:12px;color:var(--a-muted)}
 .picker-more{justify-self:center}
 @media (max-width:900px){.media-detail{grid-template-columns:1fr}}
+.svc-form.inline-bar .savebar{position:static;margin:0 0 16px;padding:0;border:0;background:none;backdrop-filter:none}
+/* ---- notification delivery ---- */
+.badge.n-sent{background:#e6f6ec;border-color:#a8dbb9}
+.badge.n-failed{background:#fdeceb;border-color:#f3b8b4;color:var(--a-danger)}
+.badge.n-pending{background:#fff6dd;border-color:#ecd48c}
+.badge.n-skipped{background:#f1f2f5}
+.meta-notify{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center}
+.meta-notify small{color:var(--a-muted)}
+.notify-filter{margin:-6px 0 14px;font-size:14px}
+.notify-filter i{font-style:normal;background:var(--a-bg);border-radius:999px;padding:0 8px;margin-left:4px;font-size:12px}
+.notify-filter .has-problems i{background:#fdeceb;color:var(--a-danger);font-weight:600}
+
+/* integrations */
+.badge.st-connected{background:#e6f6ec;border-color:#a8dbb9}
+.badge.st-disconnected{background:#f1f2f5;color:var(--a-muted)}
+.badge.st-configuration_required{background:#fff6dd;border-color:#ecd48c}
+.badge.st-error{background:#fdeceb;border-color:#f3b8b4;color:var(--a-danger)}
+.page-head h1 .badge{font-size:13px;vertical-align:middle;margin-left:8px;font-weight:500}
+.int-group{margin:0 0 22px}.int-group h2{font-size:16px;margin:0 0 8px}
+.int-table td small,.int-events td small{color:var(--a-muted)}
+.reasons{margin:0;padding-left:18px;font-size:14px}
+.int-status[data-state=error]{border-color:#f0c4c1;background:#fffafa}
+.int-status[data-state=configuration_required]{border-color:#ecd48c;background:#fffdf5}
+.form-card select{max-width:360px}

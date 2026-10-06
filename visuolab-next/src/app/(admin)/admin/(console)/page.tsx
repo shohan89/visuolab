@@ -15,6 +15,8 @@ export default async function AdminOverview() {
     { label: "Published case studies", value: d.publishedCases, href: undefined },
     { label: "Published blog posts", value: d.publishedPosts, href: undefined },
     { label: "Unread submissions", value: d.unread, href: "/admin/submissions?status=new", highlight: d.unread > 0 },
+    { label: "Integration problems", value: d.integrationProblems, href: "/admin/integrations", highlight: d.integrationProblems > 0 },
+    { label: "Notification problems", value: d.notifyProblems, href: "/admin/submissions?notify=problems", highlight: d.notifyProblems > 0 },
   ];
 
   return (

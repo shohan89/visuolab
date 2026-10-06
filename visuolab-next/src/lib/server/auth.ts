@@ -1,5 +1,5 @@
 import "server-only";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { randomToken, sha256Hex } from "./crypto";
 import { getDb, getEnv } from "./db";
@@ -7,9 +7,17 @@ import { getDb, getEnv } from "./db";
 const IDLE_MS = 12 * 3600 * 1000; // signed out after 12 hours without activity
 const ABSOLUTE_MS = 14 * 24 * 3600 * 1000; // and never later than 14 days after signing in
 
-const secureCookies = () => (getEnv().SITE_URL ?? "").startsWith("https://");
+/**
+ * Whether cookies must be Secure. True when SITE_URL is https OR the request itself came over https (Cloudflare sets X-Forwarded-Proto /
+ * CF-Visitor), so forgetting to set SITE_URL on a real deployment can no longer produce a cookie that is sent over plain http.
+ */
+async function secureCookies(): Promise<boolean> {
+  if ((getEnv().SITE_URL ?? "").startsWith("https://")) return true;
+  const h = await headers();
+  return h.get("x-forwarded-proto")?.split(",")[0]?.trim() === "https" || /"scheme":"https"/.test(h.get("cf-visitor") ?? "");
+}
 /** The __Host- prefix makes browsers refuse the cookie unless it is Secure, host-only and site-wide; it needs HTTPS, so local dev uses a plain name. */
-const cookieName = () => (secureCookies() ? "__Host-vl_session" : "vl_session");
+const cookieName = async () => ((await secureCookies()) ? "__Host-vl_session" : "vl_session");
 
 export type AdminUser = { id: string; email: string; name: string; role: "admin" | "editor" };
 
@@ -31,12 +39,12 @@ export async function createSession(userId: string, ipHash: string, userAgent: s
     getDb().prepare("UPDATE users SET last_login_at = ?2 WHERE id = ?1").bind(userId, iso),
     getDb().prepare("DELETE FROM sessions WHERE expires_at < ?1").bind(iso), // housekeeping
   ]);
-  (await cookies()).set(cookieName(), token, { httpOnly: true, secure: secureCookies(), sameSite: "lax", path: "/", maxAge: ABSOLUTE_MS / 1000 });
+  (await cookies()).set(await cookieName(), token, { httpOnly: true, secure: await secureCookies(), sameSite: "lax", path: "/", maxAge: ABSOLUTE_MS / 1000 });
 }
 
 /** The signed-in admin, or null. Reads the session cookie, checks both limits and the user, and refreshes the idle timer. */
 export async function getAdmin(): Promise<AdminUser | null> {
-  const token = (await cookies()).get(cookieName())?.value;
+  const token = (await cookies()).get(await cookieName())?.value;
   if (!token || !/^[0-9a-f]{64}$/.test(token)) return null;
   const id = await sha256Hex(token);
   const row = await getDb()
@@ -80,7 +88,7 @@ export async function requireAdminApi(): Promise<{ admin: AdminUser } | { respon
 
 export async function destroySession(): Promise<void> {
   const jar = await cookies();
-  const token = jar.get(cookieName())?.value;
+  const token = jar.get(await cookieName())?.value;
   if (token && /^[0-9a-f]{64}$/.test(token)) await getDb().prepare("DELETE FROM sessions WHERE id = ?1").bind(await sha256Hex(token)).run();
-  jar.set(cookieName(), "", { httpOnly: true, secure: secureCookies(), sameSite: "lax", path: "/", maxAge: 0 });
+  jar.set(await cookieName(), "", { httpOnly: true, secure: await secureCookies(), sameSite: "lax", path: "/", maxAge: 0 });
 }

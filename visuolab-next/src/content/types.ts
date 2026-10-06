@@ -66,6 +66,9 @@ export type CaseStudy = {
   wide: CaseFigure;
   results: { label: string; title: RichText; items: { /** Headline numbers get the "is-num" style */ metric: boolean; text: RichText }[] };
   more: { label: string; title: RichText; items: { slug: string; name: string; kind: string; image: string }[] };
+  /** Added by the CMS (full ISO timestamps); optional so the typed seed content still satisfies this type */
+  publishedAtIso?: string;
+  updatedAtIso?: string;
 };
 
 /* ---- Blog (/blog and /blog/[slug]) ---------------------------------------------------------------------------- */

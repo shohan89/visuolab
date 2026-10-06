@@ -1,6 +1,7 @@
 import "server-only";
 import { getDb } from "./db";
-import { listSubmissions, type Submission } from "./submissions";
+import { integrationCounts } from "./integrations";
+import { countNotifyProblems, listSubmissions, type Submission } from "./submissions";
 
 export type ContentUpdate = { kind: "Service" | "Case study" | "Blog post" | "Media" | "Setting"; title: string; status: string; updatedAt: string };
 
@@ -9,6 +10,9 @@ export type DashboardData = {
   publishedCases: number;
   publishedPosts: number;
   unread: number;
+  notifyProblems: number;
+  /** Integrations that are switched on but cannot run (configuration required) or whose last run failed. */
+  integrationProblems: number;
   recentSubmissions: Submission[];
   recentUpdates: ContentUpdate[];
 };
@@ -16,7 +20,7 @@ export type DashboardData = {
 /** Everything the overview page shows, in one round of queries. Call only after requireAdmin(). */
 export async function getDashboard(): Promise<DashboardData> {
   const db = getDb();
-  const [counts, recent, updates] = await Promise.all([
+  const [counts, recent, updates, notifyProblems, integrations] = await Promise.all([
     db
       .prepare(
         `SELECT
@@ -38,12 +42,16 @@ export async function getDashboard(): Promise<DashboardData> {
          ) ORDER BY updated_at DESC, title LIMIT 8`,
       )
       .all<{ kind: ContentUpdate["kind"]; title: string; status: string; updated_at: string }>(),
+    countNotifyProblems(),
+    integrationCounts(),
   ]);
   return {
     services: counts?.services ?? 0,
     publishedCases: counts?.cases ?? 0,
     publishedPosts: counts?.posts ?? 0,
     unread: counts?.unread ?? 0,
+    notifyProblems,
+    integrationProblems: integrations.configuration_required + integrations.error,
     recentSubmissions: recent.items,
     recentUpdates: (updates.results ?? []).map((r) => ({ kind: r.kind, title: r.title.replace(/<[^>]*>/g, ""), status: r.status, updatedAt: r.updated_at })),
   };

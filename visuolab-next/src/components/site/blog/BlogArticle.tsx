@@ -7,6 +7,7 @@ import { headingId } from "@/lib/slug";
 import ArticleToc, { type TocItem } from "./ArticleToc";
 import InlineText from "./InlineText";
 import ShareRail from "./ShareRail";
+import Img from "@/components/site/ui/Img";
 
 /**
  * An article page. Every article shares one layout, so one component renders any BlogPost (markup follows blog/*.html).
@@ -26,14 +27,14 @@ export default function BlogArticle({ post: p, related, url }: { post: BlogPost;
             <p className="crumbs reveal"><Link href="/blog">Blog</Link><span>/</span><span>{p.category}</span></p>
             <h1 className="h1 reveal" style={st({ "--i": 0 })}>{p.title}</h1>
             <div className="byline reveal" style={st({ "--i": 1 })}>
-              {p.author.avatar && <img className="avatar" src={p.author.avatar} alt="" />}
+              {p.author.avatar && <Img className="avatar" src={p.author.avatar} alt="" />}
               <div><b>{p.author.name}</b></div>
               <span className="dot" aria-hidden="true"></span><span>{formatDate(p.publishedAt)}</span>
               <span className="dot" aria-hidden="true"></span><span>{`${p.readMinutes} min read`}</span>
             </div>
           </div>
         </div>
-        <div className="wrap"><figure className="post-cover reveal"><img src={p.cover.src} alt={p.cover.alt} /></figure></div>
+        <div className="wrap"><figure className="post-cover reveal"><Img sizes="(max-width: 900px) 100vw, 1300px" src={p.cover.src} alt={p.cover.alt} fetchPriority="high" /></figure></div>
         <div className="wrap">
           <div className="article-grid">
             <ArticleToc items={toc} />
@@ -49,7 +50,7 @@ export default function BlogArticle({ post: p, related, url }: { post: BlogPost;
                     return b.ordered ? <ol key={i}>{items}</ol> : <ul key={i}>{items}</ul>;
                   }
                   case "quote": return <blockquote key={i}><p><InlineText>{b.text}</InlineText></p>{b.cite && <cite>{b.cite}</cite>}</blockquote>;
-                  case "image": return <figure className="post-figure" key={i}><img src={b.src} alt={b.alt} loading="lazy" />{b.caption && <figcaption>{b.caption}</figcaption>}</figure>;
+                  case "image": return <figure className="post-figure" key={i}><Img src={b.src} alt={b.alt} loading="lazy" />{b.caption && <figcaption>{b.caption}</figcaption>}</figure>;
                   case "divider": return <hr className="post-divider" key={i} />;
                 }
               })}
@@ -70,7 +71,7 @@ export default function BlogArticle({ post: p, related, url }: { post: BlogPost;
           <div className="more posts-more">
             {related.map((r, i) => (
               <Link className="reveal" style={st({ "--i": i })} href={`/blog/${r.slug}`} key={r.slug}>
-                <div className="img"><img src={r.cover.src} alt="" loading="lazy" /></div>
+                <div className="img"><Img sizes="(max-width: 900px) 100vw, 420px" src={r.cover.src} alt="" loading="lazy" /></div>
                 <p className="post-meta"><span className="cat">{r.category}</span><span>{`${r.readMinutes} min read`}</span></p>
                 <b>{r.title}</b>
               </Link>

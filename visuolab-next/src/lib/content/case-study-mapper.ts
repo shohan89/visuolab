@@ -61,6 +61,8 @@ export function mapCaseStudy(c: Row, images: Row[], media: MediaIndex, others: R
     challenges: parse<ChallengesDoc>(c.challenges_json),
     wide: wide ?? { src: "", alt: "", caption: "", position: null },
     results: parse<ResultsDoc>(c.results_json),
+    ...(c.published_at ? { publishedAtIso: s(c.published_at) } : {}),
+    updatedAtIso: s(c.updated_at),
     more: {
       label: more.label,
       title: more.title,

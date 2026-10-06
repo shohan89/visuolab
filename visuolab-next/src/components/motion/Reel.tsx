@@ -26,9 +26,20 @@ export default function Reel({ style, children }: { style?: CSSProperties; child
     };
     const unsub = subscribeScroll(update);
 
-    // only play a real video while the panel is on screen
+    // only play a real video while the panel is on screen. It is not downloaded at all until the panel is about to arrive (800px away):
+    // the 1.6 MB file would otherwise compete with the pictures and scripts of the first screen; the poster covers it until it plays.
     const video = reel.querySelector<HTMLVideoElement>(".reel-video");
     let io: IntersectionObserver | null = null;
+    let warm: IntersectionObserver | null = null;
+    if (video && !video.hidden && "IntersectionObserver" in window) {
+      warm = new IntersectionObserver((en) => {
+        if (!en[0]?.isIntersecting) return;
+        video.preload = "auto";
+        video.load();
+        warm?.disconnect();
+      }, { rootMargin: "800px 0px" });
+      warm.observe(reel);
+    }
     if (video && !video.hidden && "IntersectionObserver" in window) {
       io = new IntersectionObserver((en) => {
         if (en[0]?.isIntersecting) video.play().catch(() => {});
@@ -36,7 +47,7 @@ export default function Reel({ style, children }: { style?: CSSProperties; child
       }, { threshold: 0.2 });
       io.observe(reel);
     }
-    return () => { unsub(); io?.disconnect(); };
+    return () => { unsub(); io?.disconnect(); warm?.disconnect(); };
   }, []);
 
   return <div ref={ref} className="reel" style={style}>{children}</div>;

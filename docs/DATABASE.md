@@ -33,6 +33,8 @@ Applied in order with `npm run db:migrate:local` (local), `npm run db:migrate:pr
 | `0008_contact_submissions.sql` | `submissions` becomes **contact_submissions**; existing rows are copied over (tested). |
 | `0009_slug_redirects.sql` | **slug_redirects**: old address to new address after an editor renames a slug (see `SERVICES-CMS.md`). |
 | `0010_case_study_featured.sql` | `case_studies.featured` flag (0/1) and an index; the seed marks the four home page cases. |
+| `0014_integration_events.sql` | `integrations.last_success_at`; table `integration_events` (activity log of integration runs, 30-day retention). See `INTEGRATION-MANAGEMENT.md`. |
+| `0013_notification_delivery.sql` | `contact_submissions`: `notify_status`, `notify_provider`, `notify_message_id`, `notify_attempts`, `notify_last_attempt_at`, `idempotency_key` (unique when set), `content_hash`; existing rows get a status from what was recorded. See `INTEGRATIONS.md`. |
 | `0012_media_library.sql` | `media.caption`, `original_name`, `sha256` (64 hex characters) and two indexes; see `MEDIA.md`. |
 | `0011_blog_seo_fields.sql` | `blog_posts.canonical_url` (https only) and `og_image_id` (media, SET NULL), two indexes. Scheduled publishing needs no column (see `BLOG-CMS.md`). |
 
@@ -129,6 +131,7 @@ Typed in `src/content/types.ts`; the verification script compares the decoded do
 
 | Key | Content |
 |---|---|
+| `settings.general`, `settings.contact`, `settings.social`, `settings.seo`, `settings.analytics` | the admin **Site settings** (name, logos, contact, profiles, SEO defaults and robots, analytics IDs). Public-safe only: no secret is ever stored here; see `SETTINGS.md` |
 | `reviews` | the five client reviews of the carousel |
 | `trusted_by` | the ten names of the logo marquee |
 | `home.hero`, `home.why`, `home.stats`, `home.services`, `home.work`, `home.industries`, `home.process`, `home.reviews`, `home.showreel` | home page sections: headline and copy, lists, the four featured case slugs, the showreel video and poster |
@@ -156,7 +159,7 @@ One row per link, grouped by `menu`. Examples: `primary` = Works, Blog, About; `
 | service_case_studies | 12 | three cases on each service page, in order |
 | blog_categories / blog_posts | 5 / 6 | the topics and the six articles (dates are the published dates) |
 | blog_tags / blog_post_tags | 0 / 0 | the blog has no tags |
-| site_settings | 22 | section 6 |
+| site_settings | 27 | section 6 (22 content documents + the 5 `settings.*` documents of the admin Settings screen) |
 | navigation_items | 45 | section 7 |
 | integrations | 3 | Resend (from and to addresses; disabled until a key is set), Turnstile, analytics (all disabled) |
 | users, sessions, contact_submissions, audit_logs | 0 | not seeded |
@@ -165,7 +168,7 @@ The file starts with `DELETE` statements for the content tables, so it can be ap
 
 ## 9. Verification
 
-`npm run db:verify` builds a new in-memory SQLite database from the migration files and the seed and runs **129 checks, all passing**; `npm run db:verify:local` runs the read-only subset against the real local D1 (`.wrangler/state`): **83 of 83 pass**. What is checked:
+`npm run db:verify` builds a new in-memory SQLite database from the migration files and the seed and runs **227 checks, all passing**; `npm run db:verify:local` runs the read-only subset against the real local D1 (`.wrangler/state`): **149 of 149 pass**. What is checked:
 
 - all 9 migrations apply in order on an empty database; the rename keeps contact rows that existed before it; the seed applies twice with the same result;
 - the 15 tables exist; each content table has id, slug, title, status, created, updated and published columns; 19 foreign keys, 13 unique constraints and 19 secondary indexes are declared;

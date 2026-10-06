@@ -4,8 +4,8 @@ import BlogArticle from "@/components/site/blog/BlogArticle";
 import { getAdmin } from "@/lib/server/auth";
 import { getBlogPostBySlug, getSlugRedirect } from "@/lib/server/cms";
 import { getDb } from "@/lib/server/db";
-import { blogBreadcrumbJsonLd, blogPostingJsonLd } from "@/lib/seo/jsonld";
-import { pageMetadata } from "@/lib/seo/metadata";
+import JsonLd from "@/components/site/JsonLd";
+import { blogPostSeo } from "@/lib/server/seo";
 import { getSiteUrl } from "@/lib/site";
 
 // Articles come from D1 at request time, so scheduled articles appear by themselves when their publish time passes.
@@ -27,20 +27,11 @@ async function load(slug: string) {
   return {};
 }
 
+/** Title, description, canonical (or the original address), Open Graph, Twitter and robots from the article row; a preview is not a public page (noindex). */
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const found = await load((await params).slug);
   if (!("post" in found) || !found.post) return {};
-  const p = found.post;
-  return pageMetadata({
-    title: p.meta.title,
-    description: p.meta.description,
-    path: `/blog/${p.slug}`,
-    canonical: p.canonicalUrl,
-    image: { src: p.ogImage?.src ?? p.cover.src, alt: p.cover.alt || p.title },
-    article: { publishedTime: p.publishedAtIso ?? p.publishedAt, modifiedTime: p.updatedAtIso, authors: [p.author.name], section: p.category },
-    keywords: p.tags,
-    noindex: found.preview, // a preview is not a public page
-  });
+  return (await blogPostSeo(found.post, found.preview)).metadata;
 }
 
 export default async function BlogPostRoute({ params }: Props) {
@@ -48,11 +39,10 @@ export default async function BlogPostRoute({ params }: Props) {
   if ("redirectTo" in found && found.redirectTo) permanentRedirect(`/blog/${found.redirectTo}`);
   if (!("post" in found) || !found.post) notFound();
   const { post, related } = found;
-  const siteUrl = await getSiteUrl();
+  const [siteUrl, seo] = await Promise.all([getSiteUrl(), blogPostSeo(post, found.preview)]);
   return (
     <>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: blogPostingJsonLd(post, siteUrl) }} />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: blogBreadcrumbJsonLd(post, siteUrl) }} />
+      <JsonLd nodes={seo.jsonLd} />
       <BlogArticle post={post} related={related} url={`${siteUrl}/blog/${post.slug}`} />
     </>
   );

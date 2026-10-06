@@ -5,6 +5,7 @@ import { PillBadge } from "@/components/site/ui/Pill";
 import Rich from "@/components/site/ui/Rich";
 import type { CaseFigure, CaseStudy } from "@/content/types";
 import { st } from "@/lib/css";
+import Img from "@/components/site/ui/Img";
 
 const pos = (f: CaseFigure) => (f.position ? { objectPosition: f.position } : undefined);
 
@@ -15,7 +16,7 @@ function Gallery({ figures }: { figures: CaseFigure[] }) {
         <div className="gallery">
           {figures.map((f, i) => (
             <figure className="reveal" style={st({ "--i": i })} key={`${i}-${f.src}`}>
-              <img src={f.src} alt={f.alt} loading="lazy" style={pos(f)} />
+              <Img src={f.src} alt={f.alt} loading="lazy" style={pos(f)} />
               <figcaption>{f.caption}</figcaption>
             </figure>
           ))}
@@ -47,7 +48,7 @@ export default function CaseStudyPage({ study: c }: { study: CaseStudy }) {
         </section>
 
         <section className="cover-wrap" aria-hidden="true">
-          <div className="wrap"><div className="cover reveal"><img src={c.cover.src} alt={c.cover.alt} /></div></div>
+          <div className="wrap"><div className="cover reveal"><Img sizes="(max-width: 900px) 100vw, 1300px" src={c.cover.src} alt={c.cover.alt} fetchPriority="high" /></div></div>
         </section>
       </div>
 
@@ -98,7 +99,7 @@ export default function CaseStudyPage({ study: c }: { study: CaseStudy }) {
       <section className="wide-sec" aria-hidden="true">
         <div className="wrap">
           <figure className="wide-img reveal">
-            <img src={c.wide.src} alt={c.wide.alt} loading="lazy" style={pos(c.wide)} />
+            <Img sizes="(max-width: 900px) 100vw, 1300px" src={c.wide.src} alt={c.wide.alt} loading="lazy" style={pos(c.wide)} />
             <figcaption>{c.wide.caption}</figcaption>
           </figure>
         </div>
@@ -134,7 +135,7 @@ export default function CaseStudyPage({ study: c }: { study: CaseStudy }) {
           <div className="more">
             {c.more.items.map((m, i) => (
               <Link className="reveal" style={st({ "--i": i })} href={`/works/${m.slug}`} key={m.slug}>
-                <div className="img"><img src={m.image} alt="" loading="lazy" /></div>
+                <div className="img"><Img sizes="(max-width: 900px) 100vw, 420px" src={m.image} alt="" loading="lazy" /></div>
                 <b>{m.name}</b>
                 <span>{m.kind}</span>
               </Link>

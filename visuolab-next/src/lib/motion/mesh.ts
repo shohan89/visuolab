@@ -89,7 +89,10 @@ export function initMesh(host: HTMLElement, onGl: (on: boolean) => void): () => 
   addEventListener("pointermove", onPointer, { passive: true });
 
   const size = () => {
-    const dpr = Math.min(devicePixelRatio || 1, 1.5);
+    // The field is a soft, slow, low-contrast gradient (no detail finer than a few dozen pixels), so it is computed at half the screen's
+    // CSS resolution and stretched by the browser: a quarter of the pixels for the fragment shader to fill (it runs five noise layers
+    // three times over for every pixel, every frame), with no visible difference. The canvas keeps its full CSS size.
+    const dpr = 0.5;
     const w = Math.round(host.clientWidth * dpr), h = Math.round(host.clientHeight * dpr);
     if (!w || !h || (canvas.width === w && canvas.height === h)) return;
     canvas.width = w;

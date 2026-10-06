@@ -7,7 +7,8 @@ import { getDb } from "@/lib/server/db";
 import { clearKey, countHit } from "@/lib/server/rate-limit";
 import { audit } from "@/lib/server/audit";
 import { ipHash, requestHeaders, strictSameOrigin, valueHash } from "@/lib/server/request";
-import { STATUSES, deleteSubmission, setSubmissionStatus, type SubmissionStatus } from "@/lib/server/submissions";
+import { notifySubmission } from "@/lib/server/notifications";
+import { STATUSES, deleteSubmission, getSubmission, setSubmissionStatus, type SubmissionStatus } from "@/lib/server/submissions";
 
 const LOGIN_FAILED = "That email and password do not match.";
 const LOGIN_LOCKED = "Too many attempts. Try again in a few minutes.";
@@ -95,4 +96,22 @@ export async function removeSubmission(formData: FormData): Promise<void> {
   await deleteSubmission(id);
   await audit({ action: "submission.delete", userId: admin.id, userEmail: admin.email, entityType: "contact_submission", entityId: id, summary: "Submission deleted" });
   redirect(backTo(formData, "deleted"));
+}
+
+/**
+ * Send the notification email for an enquiry again (it failed, was never sent, or the team wants another copy). The enquiry itself is
+ * not touched; only its delivery record changes. Limited to 20 sends per admin per 10 minutes.
+ */
+export async function resendNotification(formData: FormData): Promise<void> {
+  const admin = await guard();
+  const id = String(formData.get("id") ?? "");
+  const back = String(formData.get("back") ?? "/admin/submissions");
+  const to = back.startsWith("/admin/") ? back : "/admin/submissions";
+  const sep = to.includes("?") ? "&" : "?";
+  const sub = /^[0-9a-f-]{36}$/.test(id) ? await getSubmission(id) : null;
+  if (!sub) redirect(`${to}${sep}n=failed`);
+  if ((await countHit(getDb(), `notify-resend:${admin.id}`, 600)) > 20) redirect(`${to}${sep}n=test_limited`);
+  const outcome = await notifySubmission(id);
+  await audit({ action: "submission.notify", userId: admin.id, userEmail: admin.email, entityType: "contact_submission", entityId: id, summary: `Notification ${outcome?.status ?? "not run"}${outcome && outcome.error ? ` (${outcome.error})` : ""}` });
+  redirect(`${to}${sep}n=${outcome?.status === "sent" ? "notify_sent" : outcome?.status === "skipped" ? "notify_skipped" : "notify_failed"}`);
 }

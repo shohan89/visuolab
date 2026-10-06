@@ -1,7 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "visuolab-next",
-  "main": "vinext/server/fetch-handler",
+  "main": "src/worker.ts",
   "compatibility_date": "2026-09-01",
   "account_id": "48fa30c68a3fcf35323392af2c199e01",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
@@ -11,5 +11,5 @@
   ],
   "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "visuolab-media" }],
   "observability": { "enabled": true },
-  "vars": { "SITE_URL": "http://localhost:3001", "MEDIA_BASE_URL": "", "IMAGE_TRANSFORMS": "0", "MAIL_FROM": "Visuolab <onboarding@resend.dev>", "MAIL_TO": "visuolab@gmail.com" }
+  "vars": { "SITE_URL": "http://localhost:3001", "MEDIA_BASE_URL": "", "IMAGE_TRANSFORMS": "0", "EDGE_CACHE": "1", "MAIL_FROM": "Visuolab <onboarding@resend.dev>", "MAIL_TO": "visuolab@gmail.com" }
 }

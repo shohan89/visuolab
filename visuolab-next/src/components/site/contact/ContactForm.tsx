@@ -2,9 +2,14 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { submitContact } from "@/actions/contact";
+import { useSiteConfig } from "@/components/site/SiteConfigProvider";
+import TurnstileWidget from "@/components/site/contact/TurnstileWidget";
 import { PillBadge } from "@/components/site/ui/Pill";
 import { BUDGETS, NEEDS } from "@/content/contact";
-import { readContactForm, validateContact, type FieldErrors } from "@/lib/validation/contact";
+import type { FieldErrors } from "@/lib/validation/contact";
+
+/** The validator brings in zod (about 80 KB): it is fetched when the visitor first touches the form, and the server checks the same rules anyway. */
+const loadValidation = () => import("@/lib/validation/contact");
 
 const NOTE = "By sending this you agree we may reply by email. That's it — no list, no sequence.";
 const FIELD_IDS: Record<string, string> = { name: "c-name", email: "c-email", company: "c-company", message: "c-msg" };
@@ -14,14 +19,18 @@ const FIELD_IDS: Record<string, string> = { name: "c-name", email: "c-email", co
  * browser validation bubbles and the red :user-invalid border for field problems, the .form-ok panel on success,
  * and the .form-note line (its text swapped) for errors that do not belong to one field.
  */
-export default function ContactForm() {
+export default function ContactForm({ turnstileKey = "" }: { turnstileKey?: string }) {
+  const site = useSiteConfig();
   const form = useRef<HTMLFormElement>(null);
   const startedAt = useRef(0);
+  const submissionKey = useRef(""); // made when the form appears and sent with every try: the server stores one enquiry per key, so a double click or a retry after a lost answer cannot create two
   const [pending, setPending] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [proofRound, setProofRound] = useState(0); // a Turnstile proof works once: a failed send asks for a new one
 
-  useEffect(() => { startedAt.current = Date.now(); }, []); // when the form appeared; very fast submissions are treated as bots
+  useEffect(() => { startedAt.current = Date.now(); submissionKey.current = crypto.randomUUID(); }, []);
+  useEffect(() => { const f = form.current; if (!f) return; const warm = () => { void loadValidation(); }; f.addEventListener("focusin", warm, { once: true }); return () => f.removeEventListener("focusin", warm); }, []); // when the form appeared; very fast submissions are treated as bots
 
   const showFieldErrors = (errors: FieldErrors) => {
     const f = form.current;
@@ -46,6 +55,8 @@ export default function ContactForm() {
     if (!f.checkValidity()) { f.reportValidity(); return; } // required fields and email format: the browser's own messages
     const data = new FormData(f);
     data.set("startedAt", String(startedAt.current));
+    if (submissionKey.current) data.set("key", submissionKey.current);
+    const { readContactForm, validateContact } = await loadValidation();
     const local = validateContact(readContactForm(data));
     if (!local.ok) { showFieldErrors(local.fieldErrors); return; }
 
@@ -55,8 +66,10 @@ export default function ContactForm() {
       if (res.ok) { setSent(true); return; }
       if (res.code === "invalid") showFieldErrors(res.fieldErrors);
       else setError(res.message);
+      setProofRound((n) => n + 1);
     } catch {
-      setError("Something went wrong. Please try again, or email hello@visuolab.studio.");
+      setError(`Something went wrong. Please try again, or email ${site.email}.`);
+      setProofRound((n) => n + 1);
     }
     setPending(false);
   };
@@ -98,6 +111,8 @@ export default function ContactForm() {
       <div aria-hidden="true" style={{ position: "absolute", left: "-10000px", top: "auto", width: 1, height: 1, overflow: "hidden" }}>
         <label>Website <input type="text" name="website" tabIndex={-1} autoComplete="off" /></label>
       </div>
+
+      {turnstileKey && <TurnstileWidget siteKey={turnstileKey} resetKey={proofRound} />}
 
       <button className="pill" type="submit" disabled={busy} style={busy ? { opacity: 0.6 } : undefined}>Send message <PillBadge /></button>
       <p className="form-note" hidden={sent} role={error ? "alert" : undefined}>{error ?? NOTE}</p>

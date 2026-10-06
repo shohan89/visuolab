@@ -1,5 +1,18 @@
 # Copy to .dev.vars for local development. Worker runtime secrets (production: `npx wrangler secret put <NAME>`).
 # SESSION_SECRET: 64 random hex characters (salt for visitor hashes). Required in production.
 SESSION_SECRET=
-# RESEND_API_KEY: optional until the key exists; without it no notification email is sent.
+# RESEND_API_KEY: optional until the key exists; without it enquiries are stored and marked "not configured" (see docs/INTEGRATIONS.md).
 RESEND_API_KEY=
+# TURNSTILE_SECRET: only when Cloudflare Turnstile is used (see Settings > Integrations).
+TURNSTILE_SECRET=
+# Keys and tokens are NEVER stored in the database or in the admin: only these Worker secrets hold them.
+# EMAIL_API_BASE: optional; only for a proxy or a test server in front of the email provider.
+# Integrations (Admin > Integrations shows which are set). Only the ones you use. Addresses count as secrets: they can carry a token.
+WEBHOOK_URL=
+WEBHOOK_SECRET=
+CRM_WEBHOOK_URL=
+CRM_WEBHOOK_TOKEN=
+SLACK_WEBHOOK_URL=
+# Development and tests only; never in production: INTEGRATIONS_ALLOW_HTTP=1 (http/local webhook addresses), TURNSTILE_VERIFY_URL (test server)
+# EDGE_CACHE=0 turns the page cache (src/worker.ts) off: set it for local development and tests so changes show at once. Leave unset in production.
+EDGE_CACHE=0

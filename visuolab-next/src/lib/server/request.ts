@@ -16,7 +16,10 @@ const salt = () => {
 
 /** Salted, truncated hash of the visitor's IP address. The address itself is never stored or logged. */
 export async function ipHash(h: Headers): Promise<string> {
-  const ip = h.get("cf-connecting-ip") || h.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  // On Cloudflare the address comes from CF-Connecting-IP, which a visitor cannot set. X-Forwarded-For can be typed by anyone, so it is only
+  // used for local development (plain http), where it cannot be used to dodge the rate limits of a real site.
+  const dev = !(getEnv().SITE_URL ?? "").startsWith("https://");
+  const ip = h.get("cf-connecting-ip") || (dev ? h.get("x-forwarded-for")?.split(",")[0]?.trim() : "") || "unknown";
   return (await sha256Hex(`${salt()}:ip:${ip}`)).slice(0, 32);
 }
 

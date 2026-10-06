@@ -22,7 +22,7 @@ Verified on this machine (Node 24, npm 11, Windows):
 | `npm run lint` | passes |
 | `npm run dev` | serves `/` (200), original CSS files linked in original order, `/assets/*` static files, `/about.html` → `/about` (308), `/api/health` reports D1 and R2 `ok` |
 | `npm run build` | passes (client, RSC and SSR bundles) |
-| `npm run db:migrate:local` | applies `0000`-`0012` (app meta, submissions, users and sessions, media, services and case studies, blog, settings/navigation/integrations/audit, `contact_submissions`, `slug_redirects`, `case_studies.featured`, blog SEO fields, media library columns) |
+| `npm run db:migrate:local` | applies `0000`-`0013` (app meta, submissions, users and sessions, media, services and case studies, blog, settings/navigation/integrations/audit, `contact_submissions`, `slug_redirects`, `case_studies.featured`, blog SEO fields, media library columns, notification delivery) |
 | `npm run preview` | builds, starts the built Worker in local workerd on port 8787; `/`, `/api/health`, redirect and assets all respond correctly |
 | `vinext-cloudflare deploy --dry-run` | passes. **No production deploy has been run yet.** |
 
@@ -159,7 +159,7 @@ npm run preview             # http://localhost:8787
 
 1. Confirm the account: `npx wrangler whoami`.
 2. Apply migrations to the remote D1: `npm run db:migrate:remote`, then `npm run db:seed:remote` (first time only) and `npm run admin:create -- --remote`.
-3. Set secrets (once they exist): `npx wrangler secret put SESSION_SECRET`, and likewise `RESEND_API_KEY`, `TURNSTILE_SECRET`.
+3. Set secrets (once they exist): `npx wrangler secret put SESSION_SECRET`, and likewise `RESEND_API_KEY`, `TURNSTILE_SECRET`, and (when used) `WEBHOOK_URL`, `WEBHOOK_SECRET`, `CRM_WEBHOOK_URL`, `CRM_WEBHOOK_TOKEN`, `SLACK_WEBHOOK_URL`. See `INTEGRATION-MANAGEMENT.md`.
 4. Set the final `SITE_URL` in `wrangler.jsonc`.
 5. Decide the hostname: the first deploy publishes at `https://visuolab-next.<account-subdomain>.workers.dev`. For a custom domain add a `routes` entry (`{ "pattern": "example.com", "custom_domain": true }`) to `wrangler.jsonc` once the domain is on the Cloudflare account.
 
@@ -217,3 +217,11 @@ The choice is Phase 0 of the delivery plan in `ARCHITECTURE.md`.
 | Build warnings `INEFFECTIVE_DYNAMIC_IMPORT` from `node_modules/vinext` | Known, harmless, from vinext internals. |
 | `npm audit` reports 10 issues (4 moderate, 6 high) | Today they trace to transitive packages: `braces`/`fast-glob` (via `eslint-config-next` and `vinext`) and `fflate` (via `satori` / `@vercel/og`, which vinext bundles for OG images). Re-check after upgrades; do not run `audit fix --force` blindly. |
 | `EPERM, Permission denied ... dist` during build | A previous `npm run preview` left a `workerd` process holding `dist/`. Stop it (`Get-Process workerd | Stop-Process`) and rebuild. |
+
+
+## Site settings and secrets
+
+The public pages are cached by the Worker (`src/worker.ts`, `EDGE_CACHE="1"` in `wrangler.jsonc`; invalidated by a content version that every admin action bumps), and `public/_headers` sets the cache lifetime of the static files. See `PERFORMANCE.md`; do not set `EDGE_CACHE=0` in production. The admin's **Settings → Integrations** screen lists the Cloudflare secrets the site uses and whether each is set: `SESSION_SECRET`, `RESEND_API_KEY`, `TURNSTILE_SECRET` (`npx wrangler secret put NAME`; `.dev.vars` locally). Secrets are never stored in D1 or shown in the admin. After `db:seed:remote` the five `settings.*` documents exist with the defaults; analytics only run when `SITE_URL` is a real https address. See `SETTINGS.md`.
+
+
+See `INTEGRATIONS.md` for the email provider setup, the optional `EMAIL_API_BASE` variable and how to swap providers.

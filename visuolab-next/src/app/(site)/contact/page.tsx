@@ -1,13 +1,20 @@
 import type { Metadata } from "next";
 import ContactSection from "@/components/site/contact/ContactSection";
-import { pageMetadata } from "@/lib/seo/metadata";
+import JsonLd from "@/components/site/JsonLd";
+import { fixedPageSeo } from "@/lib/server/seo";
 
-export const metadata: Metadata = pageMetadata({
-  title: "Contact — Visuolab",
-  description: "Tell us about your project. A real person answers within one working day — no forms into the void, no sales sequence.",
-  path: "/contact",
-});
+export const dynamic = "force-dynamic";
 
-export default function ContactRoute() {
-  return <ContactSection />;
+export async function generateMetadata(): Promise<Metadata> {
+  return (await fixedPageSeo("contact")).metadata;
+}
+
+export default async function ContactRoute() {
+  const seo = await fixedPageSeo("contact");
+  return (
+    <>
+      <JsonLd nodes={seo.jsonLd} />
+      <ContactSection />
+    </>
+  );
 }
