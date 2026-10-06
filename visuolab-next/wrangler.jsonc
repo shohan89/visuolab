@@ -1,5 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
+  // ---- local development and the production-build preview (npm run dev / npm run preview) ----
   "name": "visuolab-next",
   "main": "src/worker.ts",
   "compatibility_date": "2026-09-01",
@@ -11,5 +12,36 @@
   ],
   "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "visuolab-media" }],
   "observability": { "enabled": true },
-  "vars": { "SITE_URL": "http://localhost:3001", "MEDIA_BASE_URL": "", "IMAGE_TRANSFORMS": "0", "EDGE_CACHE": "1", "MAIL_FROM": "Visuolab <onboarding@resend.dev>", "MAIL_TO": "visuolab@gmail.com" }
+  "vars": { "SITE_URL": "http://localhost:3001", "MEDIA_BASE_URL": "", "IMAGE_TRANSFORMS": "0", "EDGE_CACHE": "1" },
+
+  // ---- production: `npm run deploy:production` (see docs/PRODUCTION-DEPLOYMENT.md) ----
+  // Wrangler environments do not inherit bindings, so everything the Worker needs is repeated here. The Worker keeps the name
+  // "visuolab-next" (no "-production" suffix), so a secret set with `wrangler secret put NAME --env production` belongs to it.
+  // SITE_URL must be set to the real https origin before deploying: `npm run predeploy` refuses a placeholder or an http address.
+  "env": {
+    "production": {
+      "name": "visuolab-next",
+      "main": "src/worker.ts",
+      "account_id": "48fa30c68a3fcf35323392af2c199e01",
+      "compatibility_date": "2026-09-01",
+      "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+      "assets": { "directory": "dist/client", "not_found_handling": "none", "binding": "ASSETS" },
+      "d1_databases": [
+        { "binding": "DB", "database_name": "visuolab", "database_id": "09818a92-a4b7-4ec1-a009-740b8e353402", "migrations_dir": "migrations" }
+      ],
+      "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "visuolab-media" }],
+      "observability": { "enabled": true, "logs": { "enabled": true, "invocation_logs": true, "head_sampling_rate": 1 } },
+      // The *.workers.dev address stays on until the custom domain below is attached and checked; then set both to false.
+      "workers_dev": true,
+      "preview_urls": false,
+      "vars": {
+        "SITE_URL": "https://REPLACE-WITH-YOUR-DOMAIN",
+        "MEDIA_BASE_URL": "",
+        "IMAGE_TRANSFORMS": "0",
+        "EDGE_CACHE": "1"
+      }
+      // Custom domain (the domain's DNS must be on this Cloudflare account); add after the first deploy, then redeploy:
+      // "routes": [{ "pattern": "example.com", "custom_domain": true }, { "pattern": "www.example.com", "custom_domain": true }]
+    }
+  }
 }

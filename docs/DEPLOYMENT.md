@@ -109,7 +109,7 @@ visuolab-next/
 | `d1_databases` | `DB` → `visuolab` (`09818a92-a4b7-4ec1-a009-740b8e353402`) | `migrations_dir: "migrations"` |
 | `r2_buckets` | `MEDIA` → `visuolab-media` | |
 | `observability` | enabled | Workers Logs |
-| `vars` | `SITE_URL`, `MAIL_FROM`, `MAIL_TO` | Non-secret |
+| `vars` | `SITE_URL`, `MEDIA_BASE_URL`, `IMAGE_TRANSFORMS`, `EDGE_CACHE` (production values under `env.production`) | Non-secret |
 
 **Before the first production deploy:** change `SITE_URL` from `http://localhost:3001` to the real origin.
 
@@ -154,6 +154,8 @@ npm run preview             # http://localhost:8787
 ```
 
 ## 8. Deploying to Cloudflare
+
+> The current, exact procedure (production environment, secrets, custom domain, checks) is in [PRODUCTION-DEPLOYMENT.md](PRODUCTION-DEPLOYMENT.md). The notes below are background.
 
 ### 8.1 One-time
 

@@ -6,7 +6,7 @@
     "dev": "vite dev --port 3001",
     "build": "vite build",
     "preview": "vite build && npm run db:migrate:preview && wrangler dev --config dist/server/wrangler.json",
-    "deploy": "vinext-cloudflare deploy --config dist/server/wrangler.json",
+    "deploy": "node scripts/deploy.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -23,7 +23,8 @@
     "db:seed:remote": "wrangler d1 execute visuolab --remote --file db/seed/content.sql",
     "db:verify": "node --no-warnings scripts/db/verify.mjs",
     "db:verify:local": "node --no-warnings scripts/db/verify.mjs --local",
-    "admin:create": "node scripts/create-admin.mjs"
+    "admin:create": "node scripts/create-admin.mjs",
+    "deploy:check": "node scripts/deploy.mjs --check-only --remote"
   },
   "dependencies": {
     "@vinext/cloudflare": "^1.0.1",
