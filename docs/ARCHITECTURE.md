@@ -131,7 +131,8 @@ Clean URLs:
 | `/admin/blog`, `/new`, `/[id]` | Articles. |
 | `/admin/submissions` | Contact submissions + newsletter subscribers. |
 | `/admin/media` | Upload, browse, edit alt text and focal point, delete unused. |
-| `/admin/settings` | Tabs: Site, Navigation, Footer, SEO defaults, Home page blocks, About page blocks. |
+| `/admin/navigation` | Header and footer menus: add, edit, delete, reorder (drag or arrows), show/hide, internal or external link, open in new tab, columns and their links. Save and Cancel per section. |
+| `/admin/settings` | Tabs: Site, SEO defaults, Home page blocks, About page blocks (navigation moved to `/admin/navigation`). |
 | `/admin/integrations` | Email (Resend status, test send), Turnstile, analytics ID, webhooks. Shows only whether a secret is set, never its value. |
 
 The user's required route list is fully covered. The extra pieces the audit needs (navigation, SEO defaults, About/Home content, FAQ and similar lists) live as tabs in `/admin/settings` so the URL set stays as requested.
@@ -293,7 +294,8 @@ components/admin/
 - **Draft/publish:** status field, scheduled date, "Preview" opens the public route with a signed preview cookie (`draftMode`) so unpublished items render with the real design.
 - **Concurrency:** each row has `updated_at`; forms send it back and the action rejects stale saves with a clear message.
 - **Submissions:** table with status changes, notes, CSV export, delete. Unread count in the sidebar.
-- **Settings tabs:** Site facts, Navigation (tree editor), Footer, SEO defaults and per-static-page SEO, Home blocks, About blocks.
+- **Navigation:** `/admin/navigation` has two sections, HEADER NAVIGATION (primary links, contact button, Services dropdown columns, cards and promo) and FOOTER NAVIGATION (link columns). The page is a server component; `NavigationEditor` (client) holds the draft, `saveNavigation` (`src/actions/navigation.ts`) checks the origin, requires the admin role, validates the whole section and saves it atomically (see `DATABASE.md` section 7). The public header and footer read the same table (`NavigationProvider`); their markup is unchanged.
+- **Settings tabs:** Site facts, SEO defaults and per-static-page SEO, Home blocks, About blocks.
 - **Audit:** every write adds an `audit_log` row.
 - **Admin UI library:** any accessible component set may be used here (the public design rule does not apply). Keep it out of the public bundle by only importing it under `(admin)`.
 

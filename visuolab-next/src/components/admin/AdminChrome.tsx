@@ -5,12 +5,12 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import Breadcrumbs from "./Breadcrumbs";
 
-type NavItem = { href?: string; label: string; soon?: boolean };
+type NavItem = { href: string; label: string };
 const GROUPS: { title: string; items: NavItem[] }[] = [
   { title: "Overview", items: [{ href: "/admin", label: "Dashboard" }] },
   { title: "Inbox", items: [{ href: "/admin/submissions", label: "Submissions" }] },
   { title: "Content", items: [{ href: "/admin/services", label: "Services" }, { href: "/admin/case-studies", label: "Case studies" }, { href: "/admin/blog", label: "Blog" }, { href: "/admin/media", label: "Media" }] },
-  { title: "Site", items: [{ label: "Navigation", soon: true }, { href: "/admin/integrations", label: "Integrations" }, { href: "/admin/settings", label: "Settings" }] },
+  { title: "Site", items: [{ href: "/admin/navigation", label: "Navigation" }, { href: "/admin/integrations", label: "Integrations" }, { href: "/admin/settings", label: "Settings" }] },
 ];
 
 type Props = { user: { name: string; email: string; role: string }; newCount: number; signOut: () => Promise<void>; children: ReactNode };
@@ -40,16 +40,12 @@ export default function AdminChrome({ user, newCount, signOut, children }: Props
           {GROUPS.map((g) => (
             <div className="side-group" key={g.title}>
               <p>{g.title}</p>
-              {g.items.map((it) =>
-                it.href ? (
-                  <Link href={it.href} prefetch={false} key={it.label} aria-current={active(it.href) ? "page" : undefined}>
-                    {it.label}
-                    {it.href === "/admin/submissions" && newCount > 0 && <i className="pill">{newCount}</i>}
-                  </Link>
-                ) : (
-                  <span className="is-soon" key={it.label} aria-disabled="true">{it.label} <em>Soon</em></span>
-                ),
-              )}
+              {g.items.map((it) => (
+                <Link href={it.href} prefetch={false} key={it.label} aria-current={active(it.href) ? "page" : undefined}>
+                  {it.label}
+                  {it.href === "/admin/submissions" && newCount > 0 && <i className="pill">{newCount}</i>}
+                </Link>
+              ))}
             </div>
           ))}
         </nav>

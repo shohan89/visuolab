@@ -140,40 +140,34 @@ export async function getAllSettings(db: Db): Promise<Record<string, unknown>> {
   return Object.fromEntries(rows.map((r) => [s(r.key), parse(r.value_json)]));
 }
 
-export type NavLink = { label: string; href: string };
+export type NavLink = { label: string; href: string; newTab?: true };
 export type NavGroup = { label: string; links: NavLink[] };
 export type Navigation = {
   primary: NavLink[];
   cta: NavLink | null;
-  megaCards: { label: string; href: string; description: string; icon: string }[];
-  promo: { label: string; href: string; description: string; tag: string } | null;
+  megaCards: (NavLink & { description: string; icon: string })[];
+  promo: (NavLink & { description: string; tag: string }) | null;
   megaColumns: NavGroup[];
   footer: NavGroup[];
 };
 
+/** What the header and footer show: visible items only, a hidden group takes its links with it. `newTab` is present only when it is on. */
 export async function getNavigation(db: Db): Promise<Navigation> {
-  const items = await all(db, `SELECT * FROM navigation_items WHERE ${STATUS} ORDER BY menu, position`);
+  const items = await all(db, "SELECT * FROM navigation_items WHERE is_visible = 1 ORDER BY menu, position, id");
+  const link = (i: Row): NavLink => ({ label: s(i.label), href: s(i.href), ...(i.open_in_new_tab ? { newTab: true as const } : {}) });
   const top = (menu: string) => items.filter((i) => i.menu === menu && !i.parent_id);
   const groups = (menu: string): NavGroup[] =>
-    top(menu).map((g) => ({ label: s(g.label), links: items.filter((i) => i.parent_id === g.id).map((l) => ({ label: s(l.label), href: s(l.href) })) }));
+    top(menu).filter((g) => g.type === "group").map((g) => ({ label: s(g.label), links: items.filter((i) => i.parent_id === g.id && i.type !== "group" && i.href).map(link) }));
   const promo = top("mega_promo")[0];
   const cta = top("cta")[0];
   return {
-    primary: top("primary").map((i) => ({ label: s(i.label), href: s(i.href) })),
-    cta: cta ? { label: s(cta.label), href: s(cta.href) } : null,
-    megaCards: top("mega_cards").map((i) => ({ label: s(i.label), href: s(i.href), description: s(i.description), icon: s(i.icon_key) })),
-    promo: promo ? { label: s(promo.label), href: s(promo.href), description: s(promo.description), tag: s(promo.tag) } : null,
+    primary: top("primary").filter((i) => i.href).map(link),
+    cta: cta?.href ? link(cta) : null,
+    megaCards: top("mega_cards").filter((i) => i.href).map((i) => ({ ...link(i), description: s(i.description ?? ""), icon: s(i.icon_key ?? "") })),
+    promo: promo?.href ? { ...link(promo), description: s(promo.description ?? ""), tag: s(promo.tag ?? "") } : null,
     megaColumns: groups("mega_columns"),
     footer: groups("footer"),
   };
-}
-
-/** Everything the admin dashboard counts, in one round trip. */
-export async function contentCounts(db: Db): Promise<Record<string, number>> {
-  const tables = ["services", "case_studies", "blog_posts", "media", "navigation_items", "site_settings", "integrations", "contact_submissions", "users"];
-  const out: Record<string, number> = {};
-  for (const t of tables) out[t] = Number(((await db.prepare(`SELECT COUNT(*) AS n FROM ${t}`).first<Row>()) ?? {}).n ?? 0);
-  return out;
 }
 
 /** The page for /services/<slug>, or null. Drafts and archived services are returned only when `includeUnpublished` is set (signed-in admins). */

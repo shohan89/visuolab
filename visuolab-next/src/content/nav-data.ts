@@ -38,5 +38,31 @@ export const mainLinks: NavLink[] = [
   { href: "/about", label: "About" },
 ];
 
+/** The footer columns. The database is the source the website reads; these are the values it was seeded with and what the footer shows if the database cannot be read. */
+export const footerGroups: { label: string; links: NavLink[] }[] = [
+  {
+    label: "Services",
+    links: [
+      { href: "/services/brand-identity", label: "Brand identity" },
+      { href: "/services/product-design", label: "Product design" },
+      { href: "/services/web-design-build", label: "Web design" },
+      { href: "/services/web-design-build", label: "Webflow development" },
+      { href: "/services/motion-3d", label: "Motion design" },
+    ],
+  },
+  { label: "Industries", links: ["SaaS", "Fintech", "Consumer", "Healthcare", "Web3"].map((label) => ({ href: "#", label })) },
+  {
+    label: "Company",
+    links: [
+      { href: "/works", label: "Works" },
+      { href: "/#process", label: "Process" },
+      { href: "/#reviews", label: "Reviews" },
+      { href: "/about", label: "About" },
+      { href: "/about#careers", label: "Careers" },
+      { href: "/contact", label: "Contact" },
+    ],
+  },
+];
+
 export const cta: NavLink = { href: "/contact", label: "Contact us" };
 export const contactEmail = "hello@visuolab.studio";

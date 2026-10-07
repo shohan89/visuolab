@@ -12,9 +12,9 @@ export function PillBadge() {
 }
 
 /** Primary call-to-action button (.pill). `className` adds variants such as "dark", "ghost", "nav-cta". */
-export default function Pill({ href, className, children }: { href: string; className?: string; children: ReactNode }) {
+export default function Pill({ href, className, children, newTab }: { href: string; className?: string; children: ReactNode; newTab?: boolean }) {
   return (
-    <Link className={className ? `pill ${className}` : "pill"} href={href}>
+    <Link className={className ? `pill ${className}` : "pill"} href={href} {...(newTab ? { target: "_blank", rel: "noopener noreferrer" } : {})}>
       {children}
       <PillBadge />
     </Link>

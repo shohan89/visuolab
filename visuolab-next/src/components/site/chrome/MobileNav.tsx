@@ -3,7 +3,7 @@
 import Link from "@/components/site/ui/Link";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type RefObject } from "react";
 import { createPortal } from "react-dom";
-import { cta, mainLinks, promo, serviceGroups } from "@/content/nav";
+import { newTabProps, useNavigation } from "@/components/site/NavigationProvider";
 import { useSiteConfig } from "@/components/site/SiteConfigProvider";
 import { st } from "@/lib/css";
 import { prefersReducedMotion } from "@/lib/motion/scroll";
@@ -17,6 +17,7 @@ import Brand from "./Brand";
  */
 export default function MobileNav({ open, onClose, returnFocusTo }: { open: boolean; onClose: () => void; returnFocusTo: RefObject<HTMLButtonElement | null> }) {
   const site = useSiteConfig();
+  const { primary, cta, promo, megaColumns } = useNavigation();
   const lenis = useLenis();
   const panel = useRef<HTMLDivElement>(null);
   const closeBtn = useRef<HTMLButtonElement>(null);
@@ -116,27 +117,29 @@ export default function MobileNav({ open, onClose, returnFocusTo }: { open: bool
           Services<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
         </button>
         <div className="mnav-sub" id="mnav-svc" hidden={!subOpen}>
-          {serviceGroups.map((g) => (
-            <div className="mnav-group" key={g.label}>
+          {megaColumns.map((g, gi) => (
+            <div className="mnav-group" key={`${gi}|${g.label}`}>
               <p className="mnav-group-label">{g.label}</p>
               <ul>
-                {g.links.map((l) => (
-                  <li key={l.label}><Link href={l.href}>{l.label}</Link></li>
+                {g.links.map((l, li) => (
+                  <li key={`${li}|${l.label}`}><Link href={l.href} {...newTabProps(l)}>{l.label}</Link></li>
                 ))}
               </ul>
             </div>
           ))}
-          <Link className="mnav-promo" href={promo.href}>
-            <b>{promo.title} <span className="tag">{promo.tag}</span></b>
-            <span>{promo.desc}</span>
-          </Link>
+          {promo && (
+            <Link className="mnav-promo" href={promo.href} {...newTabProps(promo)}>
+              <b>{promo.label} <span className="tag">{promo.tag}</span></b>
+              <span>{promo.description}</span>
+            </Link>
+          )}
         </div>
-        {mainLinks.map((l) => (
-          <Link className="mnav-link" style={st({ "--i": i++ })} href={l.href} key={l.href}>{l.label}</Link>
+        {primary.map((l) => (
+          <Link className="mnav-link" style={st({ "--i": i++ })} href={l.href} key={`${l.href}|${l.label}`} {...newTabProps(l)}>{l.label}</Link>
         ))}
       </nav>
       <div className="mnav-foot wrap" style={st({ "--i": i })}>
-        <Pill className="mnav-cta" href={cta.href}>{cta.label}</Pill>
+        {cta && <Pill className="mnav-cta" href={cta.href} newTab={cta.newTab}>{cta.label}</Pill>}
         <a className="mnav-mail" href={`mailto:${site.email}`}>{site.email}</a>
       </div>
     </div>,

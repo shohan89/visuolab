@@ -261,7 +261,7 @@ settings.forEach((s) => insert("site_settings", { id: q(`set_${s.key.replace(/\.
 // ---- 6. navigation ---------------------------------------------------------------------------------------------
 section("navigation_items");
 let nav = 0;
-const navItem = (menu, id, parent, position, label, href, extra = {}) => insert("navigation_items", { id: q(id), menu: q(menu), parent_id: q(parent), position: q(position), label: q(label), href: q(href), description: q(extra.description ?? null), tag: q(extra.tag ?? null), icon_key: q(extra.icon ?? null), status: q("published"), created_at: q(SEED_AT), updated_at: q(SEED_AT) });
+const navItem = (menu, id, parent, position, label, href, extra = {}) => insert("navigation_items", { id: q(id), menu: q(menu), parent_id: q(parent), position: q(position), label: q(label), href: q(href), description: q(extra.description ?? null), tag: q(extra.tag ?? null), icon_key: q(extra.icon ?? null), status: q("published"), type: q(href === null ? "group" : /^https?:/.test(href) ? "external" : "internal"), is_visible: q(1), open_in_new_tab: q(/^https?:/.test(href ?? "") ? 1 : 0), created_at: q(SEED_AT), updated_at: q(SEED_AT) });
 const navData = await imp("src/content/nav-data.ts");
 navData.mainLinks.forEach((l, i) => navItem("primary", `nav_primary_${slugify(l.label)}`, null, i, l.label, l.href));
 navItem("cta", "nav_cta_contact", null, 0, navData.cta.label, navData.cta.href);

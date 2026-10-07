@@ -2,7 +2,8 @@
 
 import Link from "@/components/site/ui/Link";
 import { useEffect, useRef, useState } from "react";
-import { cta, mainLinks, promo, serviceCards, serviceGroups } from "@/content/nav";
+import { iconFor } from "@/content/nav";
+import { newTabProps, useNavigation } from "@/components/site/NavigationProvider";
 import { subscribeScroll } from "@/lib/motion/scroll";
 import Pill from "@/components/site/ui/Pill";
 import Brand from "./Brand";
@@ -10,6 +11,7 @@ import MobileNav from "./MobileNav";
 
 /** Header: solid after 24px of scroll, dark text while it sits over a light section (.scrolled / .over-light). */
 export default function Nav() {
+  const { primary, cta, megaCards, promo, megaColumns } = useNavigation();
   const ref = useRef<HTMLElement>(null);
   const burger = useRef<HTMLButtonElement>(null);
   const [scrolled, setScrolled] = useState(false);
@@ -46,27 +48,29 @@ export default function Nav() {
               <div className="mega-main">
                 <p className="mega-label">Core departments</p>
                 <div className="mega-cards">
-                  {serviceCards.map((c) => (
-                    <Link className="mega-card" href={c.href} key={c.href}>
-                      <span className="ico">{c.icon}</span>
-                      <b>{c.title}</b>
-                      <span className="d">{c.desc}</span>
+                  {megaCards.map((c) => (
+                    <Link className="mega-card" href={c.href} key={`${c.href}|${c.label}`} {...newTabProps(c)}>
+                      <span className="ico">{iconFor(c.icon)}</span>
+                      <b>{c.label}</b>
+                      <span className="d">{c.description}</span>
                     </Link>
                   ))}
                 </div>
-                <Link className="mega-promo" href={promo.href}>
-                  <b>{promo.title} <span className="tag">{promo.tag}</span></b>
-                  <span>{promo.desc}</span>
-                  <svg viewBox="0 0 24 24"><path d="M7 17L17 7M9 7h8v8" /></svg>
-                </Link>
+                {promo && (
+                  <Link className="mega-promo" href={promo.href} {...newTabProps(promo)}>
+                    <b>{promo.label} <span className="tag">{promo.tag}</span></b>
+                    <span>{promo.description}</span>
+                    <svg viewBox="0 0 24 24"><path d="M7 17L17 7M9 7h8v8" /></svg>
+                  </Link>
+                )}
               </div>
               <div className="mega-side">
-                {serviceGroups.map((g) => (
-                  <div className="mega-col" key={g.label}>
+                {megaColumns.map((g, gi) => (
+                  <div className="mega-col" key={`${gi}|${g.label}`}>
                     <p className="mega-label">{g.label}</p>
                     <ul>
-                      {g.links.map((l) => (
-                        <li key={l.label}><Link href={l.href}>{l.label}</Link></li>
+                      {g.links.map((l, li) => (
+                        <li key={`${li}|${l.label}`}><Link href={l.href} {...newTabProps(l)}>{l.label}</Link></li>
                       ))}
                     </ul>
                   </div>
@@ -74,11 +78,11 @@ export default function Nav() {
               </div>
             </div>
           </div>
-          {mainLinks.map((l) => (
-            <Link href={l.href} key={l.href}>{l.label}</Link>
+          {primary.map((l) => (
+            <Link href={l.href} key={`${l.href}|${l.label}`} {...newTabProps(l)}>{l.label}</Link>
           ))}
         </nav>
-        <Pill className="nav-cta" href={cta.href}>{cta.label}</Pill>
+        {cta && <Pill className="nav-cta" href={cta.href} newTab={cta.newTab}>{cta.label}</Pill>}
         <button
           className="nav-burger"
           aria-label="Menu"

@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import SiteMotion from "@/components/motion/SiteMotion";
 import Analytics from "@/components/site/Analytics";
 import ShellFooter from "@/components/site/ShellFooter";
+import NavigationProvider, { FALLBACK_NAVIGATION } from "@/components/site/NavigationProvider";
 import SiteConfigProvider, { type PublicSite } from "@/components/site/SiteConfigProvider";
 import StyleGate from "@/components/site/StyleGate";
 import { FONT_PRELOAD } from "@/lib/fonts.generated";
@@ -20,6 +21,8 @@ import Nav from "@/components/site/chrome/Nav";
 import JsonLd from "@/components/site/JsonLd";
 import { organizationNode } from "@/lib/seo/jsonld";
 import { twitterHandle } from "@/lib/seo/metadata";
+import { getNavigation } from "@/lib/server/cms";
+import { getDb } from "@/lib/server/db";
 import { getSiteConfig } from "@/lib/server/site-config";
 import { analyticsActive } from "@/lib/settings/schema";
 import { getSiteUrl } from "@/lib/site";
@@ -48,8 +51,18 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
+/** The header and footer menus from D1. If they cannot be read the site still renders, with the menus it was built with. */
+async function menus() {
+  try {
+    return await getNavigation(getDb());
+  } catch (e) {
+    console.error("navigation unavailable, using the built-in menus", e instanceof Error ? e.message : e);
+    return FALLBACK_NAVIGATION;
+  }
+}
+
 export default async function SiteLayout({ children }: { children: React.ReactNode }) {
-  const [siteUrl, c] = await Promise.all([getSiteUrl(), getSiteConfig()]);
+  const [siteUrl, c, navigation] = await Promise.all([getSiteUrl(), getSiteConfig(), menus()]);
   // the few values the header and footer show; nothing private
   const site: PublicSite = {
     siteName: c.general.siteName,
@@ -78,11 +91,13 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
       </head>
       <body className="rhythm">
         <SiteConfigProvider value={site}>
-          <SiteMotion>
-            <Nav />
-            {children}
-            <ShellFooter />
-          </SiteMotion>
+          <NavigationProvider value={navigation}>
+            <SiteMotion>
+              <Nav />
+              {children}
+              <ShellFooter />
+            </SiteMotion>
+          </NavigationProvider>
           {/* production only: in development React logs a (harmless) class mismatch for every element the script reveals before hydration */}
           {import.meta.env.PROD && <script dangerouslySetInnerHTML={{ __html: EARLY_REVEAL }} />}
           {analytics && <Analytics ga4={analytics.ga4On ? analytics.ga4 : ""} gtm={analytics.gtmOn ? analytics.gtm : ""} pixel={analytics.pixelOn ? analytics.metaPixel : ""} />}

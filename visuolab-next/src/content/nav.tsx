@@ -3,7 +3,7 @@ import { serviceCardData } from "./nav-data";
 
 /* Navigation for the header components: the data in nav-data.ts plus the icon drawn for each mega-menu card.
    One source for the desktop mega menu and the mobile menu (the original built the mobile menu by scraping the desktop DOM). */
-export { cta, contactEmail, mainLinks, promo, serviceGroups } from "./nav-data";
+export { cta, contactEmail, footerGroups, mainLinks, promo, serviceGroups } from "./nav-data";
 export type { NavLink } from "./nav-data";
 
 const icons: Record<(typeof serviceCardData)[number]["icon"], ReactNode> = {
@@ -13,3 +13,6 @@ const icons: Record<(typeof serviceCardData)[number]["icon"], ReactNode> = {
 };
 
 export const serviceCards: { href: string; title: string; desc: string; icon: ReactNode }[] = serviceCardData.map((c) => ({ href: c.href, title: c.title, desc: c.desc, icon: icons[c.icon] }));
+
+/** The drawing for an icon name stored with a mega-menu card; an unknown name draws nothing. */
+export const iconFor = (key: string): ReactNode => (key in icons ? icons[key as keyof typeof icons] : null);

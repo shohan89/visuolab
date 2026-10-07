@@ -44,6 +44,7 @@ Both DOMs are walked in parallel (about 380–900 elements per page) and every e
 |---|---|
 | Hover effects | 86 hovered elements on 8 routes (pills, nav links, mega-menu cards, work cards, case panels, blog cards, chips, footer links, FAQ rows, contact links, options): identical resting and hover styles. Three apparent differences were the elements caught mid-animation while the page was still scrolling; re-measured after the smooth scroll settles, none |
 | Navigation | the same links and targets at 1440, 768 and 390 (24 links on desktop); the header background when scrolled is the same; the open mega menu is **pixel-identical** (0 differing pixels on Home and Blog). The only difference is whitespace between two inline pieces of the Design-sprint promo text, which does not render |
+| Navigation from the database | The header, mega menu and footer now read `navigation_items` instead of arrays in the components. With the seeded rows the server-rendered header and footer of six routes (Home, About, Works, Contact, Blog, a service page) are **byte-identical** to the markup before the change (every character of `<header class="nav">…</header>` and `<footer>…</footer>` compared). The only markup that can differ is what an editor changes: new tab attributes on links set to open in a new tab. Checked again after the end-to-end edit test, which restores the menus. |
 | Mobile menu | opens with the same 6 items; the open panel is **pixel-identical** (0 differing pixels) |
 | Scroll behaviour | smooth scrolling (Lenis) on in both; a 1200 px wheel turn follows the same curve (at 100 / 300 / 600 ms and settled) and settles in the same place |
 | Animations | the same elements are revealed on scroll on every route (counts equal), the same timing values; the reveal and hero load-in start when the HTML has been parsed, as in the original |
@@ -70,9 +71,14 @@ None is a design mismatch; they are listed because they are measurable or becaus
 | 7 | `/services` | The original has no such page; the app redirects it to `/#services` | None | Needed so that the Services link of a breadcrumb or old address does not 404 | **Accepted** |
 | 8 | Every route | Addresses are clean (`/about`) instead of `about.html`; legacy `.html` addresses redirect with 308 | None | Migration requirement | **Accepted** |
 
+## Navigation CMS (`scripts/qa/navigation-qa.mjs`)
+
+Run against the dev server and its local database (45 checks, all passing): the sidebar item is a link and the "Soon" badge is gone; adding, editing, deleting, reordering (arrows and drag and drop), hiding and cancelling items; an internal and an external link (new tab, `rel="noopener noreferrer"`); the contact button and a Services dropdown link; the mobile menu (390 px: opens, shows the edited button and the new dropdown link, a link navigates and closes it) and the desktop dropdown and links; footer links, a hidden link, a hidden column, reorder and the per-page anchor rule on About and Home; server-side validation (`javascript:`, `//host`, missing slash, empty label, `<b>`, address without host); authorization (no session: the page redirects to sign-in and a replayed save changes nothing; wrong origin with a valid session changes nothing; the same request with session and right origin is saved, so the refusals are real). No JavaScript errors in the browser. The test puts the menus back afterwards.
+
 ## Re-running
 
 ```bash
+# Navigation CMS (dev server on :3001, local database, an admin user): ADMIN_EMAIL=... ADMIN_PASSWORD=... node scripts/qa/navigation-qa.mjs
 # production build running on :8788, original site in ../referance-website, from visuolab-next:
 PAGES="$(cat pages.txt)" WIDTHS=1440,768,390 NEWBASE=http://localhost:8788 node scripts/qa/compare.mjs
 NOSRCSET=1 PAGES="$(cat pages.txt)" WIDTHS=1440,768,390 NEWBASE=http://localhost:8788 node scripts/qa/compare.mjs
