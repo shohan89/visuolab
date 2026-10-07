@@ -15,4 +15,3 @@ export async function getSiteUrl(): Promise<string> {
   return (value || FALLBACK).replace(/\/+$/, "");
 }
 
-export const SITE_NAME = "Visuolab";

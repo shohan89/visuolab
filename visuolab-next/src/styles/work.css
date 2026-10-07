@@ -29,22 +29,12 @@
 .overview .block p{margin-top:12px;font-size:clamp(16px,1.2vw,19px);line-height:1.6;color:var(--ink-2);text-wrap:pretty}
 .overview .block+.block{margin-top:clamp(32px,5vh,48px)}
 .overview .tags{margin-top:20px}
-.overview-sec .stats{grid-template-columns:repeat(3,minmax(0,1fr))}
 
 .gallery{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
 .gallery figure{margin:0;border-radius:20px;overflow:hidden;aspect-ratio:4/3;background:#0d0d10;position:relative}
 .gallery img{width:100%;height:100%;object-fit:cover;display:block}
 .gallery figcaption{position:absolute;left:14px;bottom:14px;padding:8px 12px;border-radius:10px;font-size:13px;
   background:rgba(4,8,30,.55);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
-
-.quote-sec .wrap{display:grid;justify-items:center;text-align:center}
-.quote-sec .src{font-size:13px;color:var(--muted)}
-.quote-sec .stars{color:var(--star);letter-spacing:2px;font-size:12px}
-.big-quote{margin:22px auto 0;max-width:28ch;text-wrap:balance;font-family:var(--serif);font-style:italic;font-weight:400;font-size:clamp(28px,3.4vw,52px);line-height:1.15;letter-spacing:-.01em;text-wrap:pretty}
-.quote-sec .who{margin-top:28px;display:flex;align-items:center;gap:14px;text-align:left}
-.quote-sec .who img{width:48px;height:48px;border-radius:50%;object-fit:cover}
-.quote-sec .who b{display:block;font-weight:500}
-.quote-sec .who span{display:block;font-size:13px;color:var(--muted);margin-top:2px}
 
 /* process phases */
 /* the phases read as a run of steps on a rail, not four loose boxes.
@@ -115,12 +105,9 @@
 .more b{display:block;margin-top:14px;font-size:18px;font-weight:500;letter-spacing:-.015em;transition:color .3s}
 .more a:hover b{color:var(--brand-2)}
 .more span{display:block;margin-top:3px;font-size:13px;color:var(--muted)}
-
-.next-sec{padding-bottom:clamp(40px,6vh,72px)}
 .next{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:center;gap:32px;border-radius:28px;overflow:hidden;
   background:var(--bg-2);border:1px solid var(--line-2);padding:clamp(24px,3vw,44px);color:inherit;transition:transform .5s var(--ease-out),border-color .4s}
 .next:hover{transform:translateY(-4px);border-color:var(--line)}
-.next .lbl{font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}
 .next h3{margin-top:14px;font-size:clamp(28px,3.4vw,52px);font-weight:500;letter-spacing:-.03em;line-height:1}
 .next h3 em{font-family:var(--serif);font-style:italic;font-weight:400;display:block;font-size:.8em;margin-top:6px;color:var(--ink-2)}
 .next .arrow-link{display:inline-flex}
@@ -138,7 +125,6 @@
   .overview>div{grid-column:1;grid-row:auto}
   .overview .overview-title{max-width:none;margin-bottom:24px}
   .overview>div{justify-self:start;width:auto}
-  .overview-sec .stats{grid-template-columns:1fr 1fr}
   .cover{aspect-ratio:4/3}
 }
 
@@ -189,7 +175,6 @@
 .works-reviews .review-card .mark{color:var(--brand)}
 .works-reviews .review-card .who{border-left-color:var(--light-line)}
 .works-reviews .review-card .who span{color:var(--light-muted)}
-.works-numbers{padding-top:clamp(88px,12vh,160px)}
 
 @media (max-width:900px){
   .works-grid{grid-template-columns:1fr}
@@ -210,8 +195,6 @@
 /* same as the service hero: first stat on the left edge, second on the centre line, last on the right edge */
 @media (min-width:761px){.about-project .stat:nth-child(2){justify-self:center}.about-project .stat:last-child{justify-self:end}}
 @media (max-width:760px){.about-project .stats{grid-template-columns:1fr}}
-
-.chapters{display:grid;gap:12px;margin-top:clamp(32px,5vh,48px)}
 .chapter{border:1px solid var(--line);border-radius:20px;background:var(--bg-2);
   transition:border-color .4s,background-color .4s}
 .chapter[open]{border-color:rgba(122,104,255,.34);background:#141417}
@@ -229,10 +212,6 @@
   width:14px;height:1.6px;background:var(--ink-2);transform:translate(-50%,-50%);transition:transform .35s var(--ease-out),opacity .3s}
 .chapter .mark::after{transform:translate(-50%,-50%) rotate(90deg)}
 .chapter[open] .mark::after{transform:translate(-50%,-50%) rotate(0deg);opacity:0}
-.chapter-body{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);
-  gap:24px clamp(28px,4vw,72px);padding:0 clamp(20px,2.2vw,30px) 28px;
-  margin-left:calc(24px + clamp(16px,2vw,28px))}
-.chapter-body>p{margin:0;font-size:16px;line-height:1.7;color:var(--ink-2);text-wrap:pretty}
 .deliverables .label{margin-bottom:12px}
 .deliverables ul{list-style:none;margin:0;padding:0;display:grid;gap:0}
 .deliverables li{display:flex;justify-content:space-between;gap:16px;padding:10px 0;
@@ -241,12 +220,7 @@
 .deliverables .what{color:var(--ink);font-weight:500}
 
 /* chips shared by the Team and Technologies panels */
-.chip-list{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:10px}
-.chip-list li{padding:10px 16px;border-radius:999px;border:1px solid var(--line);
-  font-size:14.5px;font-weight:500;color:var(--ink-2)}
 @media (max-width:900px){
-  .about-cols,.chapter-body,.team-row{grid-template-columns:1fr}
-  .chapter-body{margin-left:0}
   .chapter summary{grid-template-columns:auto minmax(0,1fr) auto;gap:12px 16px}
   .chapter .dur{grid-column:2;justify-self:start}
 }
@@ -260,12 +234,8 @@
   font-size:clamp(30px,3.2vw,50px);font-weight:500;letter-spacing:-.03em;line-height:1.05;text-wrap:balance}
 .ws-title em{font-family:var(--serif);font-style:italic;font-weight:400;font-size:1.08em}
 .ws-body{grid-column:2;grid-row:1 / span 3;min-width:0}
-.ws-intro{margin:0 0 clamp(28px,4vh,44px);max-width:56ch;
-  font-size:clamp(17px,1.35vw,21px);line-height:1.6;color:var(--ink-2);text-wrap:pretty}
-.ws .chapters{margin-top:0}
 
 /* a plain row for the Team / Technologies panels — no number, no duration */
-.chapter-plain summary{grid-template-columns:minmax(0,1fr) auto}
 
 /* ---- results: outcomes as a checked list, the way the reference states them */
 .results{list-style:none;margin:0;padding:0;display:grid;gap:20px;max-width:62ch}
@@ -284,8 +254,7 @@
 /* case hero facts: first item on the left edge, last on the right edge, the
    middle three spaced evenly between (like the stats rows) */
 @media (min-width:901px){.work-hero .meta{grid-template-columns:repeat(5,auto);justify-content:space-between}}
-.work-hero .meta dt{color:rgba(255,255,255,.62)}   /* the labels sit on the bright part of the beam */
-.ws-body>.chapters:first-child{margin-top:0}   /* no intro paragraph above: the first chapter lines up with the label */
+.work-hero .meta dt{color:rgba(255,255,255,.62)}   /* the labels sit on the bright part of the beam */   /* no intro paragraph above: the first chapter lines up with the label */
 
 /* ---- case "How it went" cards on white, like the service pages' white cards ---- */
 .chapter{background:#fff;border-color:rgba(10,10,14,.08);color:var(--light-ink)}
@@ -294,7 +263,6 @@
 .chapter .n{color:var(--brand)}
 .chapter .dur{color:var(--brand);background:rgba(56,38,199,.08);border-color:rgba(56,38,199,.2)}
 .chapter .mark::before,.chapter .mark::after{background:var(--light-ink)}
-.chapter-body>p{color:#54545f}
 .chapter .deliverables .label{color:var(--light-muted)}
 .chapter .deliverables li{border-top-color:rgba(10,10,14,.08);color:var(--light-muted)}
 .chapter .deliverables li:last-child{border-bottom-color:rgba(10,10,14,.08)}

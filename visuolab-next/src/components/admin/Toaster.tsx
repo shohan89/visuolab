@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 
 type Kind = "success" | "error" | "info";
 type Toast = { id: number; kind: Kind; text: string };
@@ -42,8 +42,6 @@ const NOTICES: Record<string, { kind: Kind; text: string }> = {
   confirm_needed: { kind: "error", text: "Not done: the slug did not match. Nothing was changed." },
   failed: { kind: "error", text: "That did not work. Please try again." },
 };
-
-export const useToast = () => useContext(Ctx);
 
 export default function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);

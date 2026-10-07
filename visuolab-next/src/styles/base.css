@@ -60,10 +60,6 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
 .h1 em,.h2 em,.h3 em,.serif{
   font-family:var(--serif);font-style:italic;font-weight:400;letter-spacing:-.01em;font-size:1.1em;line-height:.9;
 }
-.h1 .pill-em{                                  /* Arounda-style tinted italic words */
-  display:inline-block;padding:.02em .28em .06em;margin:0 .04em;border-radius:.45em;
-  background:rgba(255,255,255,.07);
-}
 .lead{font-size:clamp(16px,1.2vw,19px);line-height:1.55;color:var(--ink-2);text-wrap:pretty}
 .muted{color:var(--muted)}
 .label{
@@ -81,10 +77,8 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
 .light{background:var(--light-bg);color:var(--light-ink)}
 .light .lead{color:#3c3c46}
 .light .muted{color:var(--light-muted)}
-.hairline{height:1px;background:var(--line)}
 .scroll-sequence{--banner-top:var(--nav-h)}
 @media (max-width:900px){.sec-grid{grid-template-columns:1fr;gap:16px}.why .sec-grid{grid-template-columns:1fr}}
-.light .hairline{background:var(--light-line)}
 
 /* ---- buttons ---------------------------------------------------------- */
 .pill{

@@ -6,7 +6,7 @@
  * that served it) and answers repeat visits from there without touching D1 or rendering.
  *
  * How it stays correct:
- *   - The cache key contains a content version (a counter in D1, `app_meta.content_version`) that every admin change bumps (see
+ *   - The cache key contains the build id (so a new deploy never serves HTML that points at the previous deploy's hashed files) and a content version (a counter in D1, `app_meta.content_version`) that every admin change bumps (see
  *     server/audit.ts). A saved change therefore changes the key and the next visit renders fresh. The counter is read at most once
  *     every 5 seconds per Worker instance, so an admin change is live everywhere within about 5 seconds.
  *   - Entries also expire after 5 minutes, which covers the one change nobody saves: a scheduled article reaching its publish time.
@@ -17,6 +17,8 @@
  */
 import handler from "vinext/server/fetch-handler";
 export * from "vinext/server/fetch-handler";
+
+declare const __BUILD_ID__: string; // set at build time (vite.config.ts)
 
 type WorkerEnv = Cloudflare.Env & { EDGE_CACHE?: string };
 
@@ -67,7 +69,7 @@ const worker = {
     const version = await contentVersion(env);
     if (version.startsWith("x")) return mark(await app.fetch(request, env, ctx), "BYPASS");
     const url = new URL(request.url);
-    const key = new Request(`${url.origin}${url.pathname.replace(/\/+$/, "") || "/"}?__cv=${version}`, { method: "GET" });
+    const key = new Request(`${url.origin}${url.pathname.replace(/\/+$/, "") || "/"}?__cv=${version}&__b=${typeof __BUILD_ID__ === "string" ? __BUILD_ID__ : "dev"}`, { method: "GET" });
     const cache = (caches as unknown as { default: Cache }).default;
 
     const hit = await cache.match(key);
