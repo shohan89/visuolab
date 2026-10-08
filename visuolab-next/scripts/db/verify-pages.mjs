@@ -464,6 +464,22 @@ db.exec(`INSERT INTO users (id, email, name, password_hash, role, created_at, up
   check("only the last 10 versions are kept", revs("sec_works_grid").length === 10, String(revs("sec_works_grid").length));
   const list = await store.listRevisions(d1, "works", "grid");
   check("the versions are listed newest first, with their content, when saved and who saved them", list.length === 10 && list[0].content.emptyText === "Edit 11" && list[1].content.emptyText === "Edit 10" && list.every((x) => x.savedAt && x.replacedAt) && list[0].by === "Ed", list.map((x) => x.content?.emptyText).join(","));
+  // a revision records the whole change: previous content, new content, who changed it and when, and whether it was a restore
+  const top = q("SELECT content, new_content, changed_by, replaced_at, kind FROM page_section_revisions WHERE section_id = 'sec_works_grid' ORDER BY replaced_at DESC, id DESC LIMIT 1")[0];
+  check("a revision stores the previous content, the new content, who made the change, when, and that it was an edit", JSON.parse(top.content).emptyText === "Edit 11" && JSON.parse(top.new_content).emptyText === "Edit 12" && top.changed_by === "u1" && !!top.replaced_at && top.kind === "edit");
+  check("the list names the change's author, its kind and the fields it touched", list[0].by === "Ed" && list[0].kind === "edit" && list[0].changedFields.join() === "emptyText");
+  const wanted = list[1];
+  const got = await store.getRevisionContent(d1, "works", "grid", (q("SELECT id FROM page_section_revisions WHERE section_id = 'sec_works_grid' ORDER BY replaced_at DESC, id DESC LIMIT 1 OFFSET 1")[0]).id);
+  check("an earlier version can be fetched to be put back", got?.content.emptyText === wanted.content.emptyText && !!got.replacedAt);
+  check("a version of another section, or an unknown one, cannot be fetched through this section", (await store.getRevisionContent(d1, "works", "hero", q("SELECT id FROM page_section_revisions WHERE section_id = 'sec_works_grid' LIMIT 1")[0].id)) === null && (await store.getRevisionContent(d1, "works", "grid", "rev_nope")) === null);
+  const rest = await store.saveSectionContent(d1, { template: "works", key: "grid", content: got.content, expectedUpdatedAt: stampOf(), userId: "u1", kind: "restore" });
+  const rtop = q("SELECT content, new_content, kind FROM page_section_revisions WHERE section_id = 'sec_works_grid' ORDER BY replaced_at DESC, id DESC LIMIT 1")[0];
+  check("restoring is a checked save marked as a restore: the content it replaced is kept as a new version", rest.ok && one("SELECT content FROM page_sections WHERE id = 'sec_works_grid'").content === JSON.stringify(got.content) && rtop.kind === "restore" && JSON.parse(rtop.content).emptyText === "Edit 12" && JSON.parse(rtop.new_content).emptyText === wanted.content.emptyText && revs("sec_works_grid").length === 10);
+  check("the list marks the restore", (await store.listRevisions(d1, "works", "grid"))[0].kind === "restore");
+  const recent = await store.listRecentPageRevisions(d1, 5);
+  check("recent changes lists the latest revisions across pages, newest first, with where, which section and the address", recent.length === 5 && recent[0].where === "Works" && recent[0].section === "Case study grid" && recent[0].kind === "restore" && recent[0].href === "/admin/pages/works/grid" && recent.every((x, i) => i === 0 || recent[i - 1].at >= x.at));
+  rejects("a revision's kind must be edit or restore", "UPDATE page_section_revisions SET kind = 'other'", /CHECK/);
+  rejects("a revision's new content must be a JSON object", "UPDATE page_section_revisions SET new_content = '[1]'", /CHECK/);
   db.prepare("UPDATE page_section_revisions SET content = '{\"nope\":1}' WHERE id = (SELECT id FROM page_section_revisions WHERE section_id = 'sec_works_grid' ORDER BY replaced_at DESC, id DESC LIMIT 1)").run();
   check("a version that no longer passes the schema is listed without content (it cannot be loaded)", (await store.listRevisions(d1, "works", "grid"))[0].content === null);
   check("a section that does not exist has no versions", (await store.listRevisions(d1, "works", "nope")).length === 0 && (await store.listRevisions(d1, "about", "hero")).length === 0);

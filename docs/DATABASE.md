@@ -36,6 +36,7 @@ Applied in order with `npm run db:migrate:local` (local), `npm run db:migrate:pr
 | `0014_integration_events.sql` | `integrations.last_success_at`; table `integration_events` (activity log of integration runs, 30-day retention). See `INTEGRATION-MANAGEMENT.md`. |
 | `0015_navigation_cms.sql` | `navigation_items`: `type`, `page_ref`, `is_visible`, `open_in_new_tab`; the unique position index is dropped. See `/admin/navigation` in `ARCHITECTURE.md` section 8. |
 | `0017_page_section_revisions.sql` | **page_section_revisions**: the earlier saved versions of a section (the last 10 per section), for "Previous versions" in the Pages admin. |
+| `0021_revision_details.sql` | Revisions record the whole change: **new_content**, **kind** (`edit` or `restore`) on both revision tables, and **changed_by** on `page_section_revisions`. |
 | `0020_entity_hidden_sections.sql` | **entity_hidden_sections**: the sections of a service, case study or article that an editor switched off (one row each; no row means on). The content stays in the record. Triggers remove a deleted record's rows. |
 | `0019_entity_section_revisions.sql` | **entity_section_revisions**: the earlier saved versions of one section of a service, case study or article (the last 10 per section), for "Previous versions" in the section editors. Triggers on `services`, `case_studies` and `blog_posts` remove a deleted record's versions. |
 | `0018_page_nofollow.sql` | **pages.nofollow**: the page's own Follow / Nofollow choice, next to `noindex`. |

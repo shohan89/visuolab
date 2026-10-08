@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { ENTITIES, type EntityKind } from "@/lib/cms/entity";
 import { audit } from "@/lib/server/audit";
 import { requireAdmin } from "@/lib/server/auth";
-import { entitySection, loadEntity, saveEntitySection, setEntitySectionEnabled } from "@/lib/server/entity-sections";
+import { entitySection, getEntityRevision, loadEntity, saveEntitySection, setEntitySectionEnabled } from "@/lib/server/entity-sections";
 import { ipHash, requestHeaders, strictSameOrigin } from "@/lib/server/request";
 import type { CmsFormState } from "./cms-pages";
 
@@ -60,6 +60,27 @@ export async function saveEntitySectionAction(_prev: CmsFormState, f: FormData):
   await audit({
     action: `${info.auditType}.section`, userId: admin.id, userEmail: admin.email, entityType: info.auditType, entityId: id,
     summary: `${rec?.input.slug ?? id} / ${sec?.name ?? key}: ${res.changedFields.length ? `changed ${res.changedFields.join(", ")}` : "saved, nothing changed"}`, ipHash: await ipHash(h),
+  });
+  refreshPublic(kind, rec?.input.slug ?? null);
+  return { ok: true, updatedAt: res.updatedAt, nonce: nonce() };
+}
+
+/** Puts an earlier version of a section back: fields `kind`, `id`, `key`, `revisionId`, `expectedUpdatedAt`. An ordinary save of that content, marked as a restore, and audited. */
+export async function restoreEntitySectionAction(_prev: CmsFormState, f: FormData): Promise<CmsFormState> {
+  const { admin, h } = await guard();
+  const kind = text(f, "kind");
+  const id = text(f, "id");
+  const key = text(f, "key");
+  if (!isKind(kind) || !validId(kind, id) || !entitySection(kind, key)) return bad("Unknown page or section.");
+  const rev = await getEntityRevision(kind, id, key, text(f, "revisionId"));
+  if (!rev) return bad("That version can no longer be restored: it is not a version of this section, or it does not fit the section any more.");
+  const res = await saveEntitySection({ kind, id, key, content: rev.content, expectedUpdatedAt: text(f, "expectedUpdatedAt"), userId: admin.id, mode: "restore" });
+  if (!res.ok) return res.kind === "invalid" ? { ok: false, kind: "invalid", errors: res.errors, nonce: nonce() } : { ok: false, kind: res.kind, nonce: nonce() };
+  const rec = await loadEntity(kind, id);
+  const info = ENTITIES[kind];
+  await audit({
+    action: `${info.auditType}.section.restore`, userId: admin.id, userEmail: admin.email, entityType: info.auditType, entityId: id,
+    summary: `${rec?.input.slug ?? id} / ${entitySection(kind, key)?.name ?? key}: restored the version replaced on ${rev.replacedAt.slice(0, 16).replace("T", " ")} UTC${res.changedFields.length ? `; changed ${res.changedFields.join(", ")}` : "; nothing changed"}`, ipHash: await ipHash(h),
   });
   refreshPublic(kind, rec?.input.slug ?? null);
   return { ok: true, updatedAt: res.updatedAt, nonce: nonce() };

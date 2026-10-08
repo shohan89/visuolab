@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-const LABELS: Record<string, string> = { admin: "Dashboard", submissions: "Submissions", services: "Services", "case-studies": "Case studies", blog: "Blog", media: "Media", pages: "Pages", navigation: "Navigation", settings: "Settings", ga4: "Google Analytics 4", gtm: "Google Tag Manager", meta_pixel: "Meta Pixel", resend: "Email notifications", turnstile: "Cloudflare Turnstile", webhook: "Webhook", crm_webhook: "CRM webhook", slack: "Slack notifications", general: "General", social: "Social", seo: "SEO", analytics: "Analytics", integrations: "Integrations", categories: "Categories", tags: "Tags", new: "New", edit: "Edit", confirm: "Confirm" };
+const LABELS: Record<string, string> = { admin: "Dashboard", submissions: "Submissions", services: "Services", "case-studies": "Case studies", blog: "Blog", media: "Media", pages: "Pages", revisions: "Recent changes", navigation: "Navigation", settings: "Settings", ga4: "Google Analytics 4", gtm: "Google Tag Manager", meta_pixel: "Meta Pixel", resend: "Email notifications", turnstile: "Cloudflare Turnstile", webhook: "Webhook", crm_webhook: "CRM webhook", slack: "Slack notifications", general: "General", social: "Social", seo: "SEO", analytics: "Analytics", integrations: "Integrations", categories: "Categories", tags: "Tags", new: "New", edit: "Edit", confirm: "Confirm" };
 
 /** A page or section name from its address: "service-detail" -> "Service detail". */
 const prettify = (s: string) => { const w = s.replace(/[-_]+/g, " "); return w[0]!.toUpperCase() + w.slice(1); };

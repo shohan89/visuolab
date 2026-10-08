@@ -395,3 +395,5 @@ dialog.picker::backdrop{background:rgba(20,21,26,.55)}
 .confirm-dialog h2{margin:0 0 10px;font-size:18px}
 .confirm-dialog p{margin:0 0 10px}
 .confirm-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap}
+.rev-actions{display:flex;gap:8px;flex-wrap:wrap}
+.cms-versions li{display:flex;justify-content:space-between;gap:14px;align-items:center;flex-wrap:wrap}

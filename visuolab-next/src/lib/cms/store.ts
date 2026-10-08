@@ -9,7 +9,7 @@
  */
 import { defaultContent } from "./defaults.ts";
 import { pageSeoSchema, type PageSeoInput } from "./page-seo.ts";
-import { checkSection, SECTION_TYPES, slotOf, TEMPLATES, type SectionErrors } from "./registry.ts";
+import { checkSection, SECTION_TYPES, slotOf, TEMPLATES, templateSlug, type SectionErrors } from "./registry.ts";
 import type { PageContent, PageRecord, PageStatus, PageTemplate, SectionRef, SectionType } from "./types.ts";
 
 type Db = D1Database;
@@ -76,6 +76,8 @@ export type SaveSectionInput = {
   key: string;
   /** What the editor sent: unknown until it has passed the schema. */
   content: unknown;
+  /** `restore` when the content is an earlier version put back (recorded on the revision). */
+  kind?: "edit" | "restore";
   /** The `updatedAt` the editor loaded. If the section changed since, nothing is written (two editors cannot silently overwrite each other). */
   expectedUpdatedAt: string;
   userId: string;
@@ -159,7 +161,7 @@ export async function saveSectionContent(db: Db, input: SaveSectionInput): Promi
   const stmts = [
     // the version being replaced is kept (only if it differs, and only if this save will win the race: same guard as the update)
     ...(changed
-      ? [db.prepare("INSERT INTO page_section_revisions (id, section_id, content, schema_version, saved_at, saved_by, replaced_at) SELECT ?1, id, content, schema_version, updated_at, updated_by, ?2 FROM page_sections WHERE id = ?3 AND updated_at = ?4").bind(`rev_${crypto.randomUUID()}`, now, id, expected)]
+      ? [db.prepare("INSERT INTO page_section_revisions (id, section_id, content, schema_version, saved_at, saved_by, replaced_at, new_content, changed_by, kind) SELECT ?1, id, content, schema_version, updated_at, updated_by, ?2, ?5, ?6, ?7 FROM page_sections WHERE id = ?3 AND updated_at = ?4").bind(`rev_${crypto.randomUUID()}`, now, id, expected, newJson, input.userId, input.kind ?? "edit")]
       : []),
     db.prepare("UPDATE page_sections SET content = ?3, schema_version = ?4, updated_at = ?2, updated_by = ?5 WHERE id = ?1 AND updated_at = ?6").bind(id, now, newJson, version, input.userId, expected),
     // the reference rows follow only if the update above happened (the row now carries `now`)
@@ -289,12 +291,16 @@ export async function readSectionForEdit(db: Db, template: PageTemplate, key: st
 
 export type Revision = {
   id: string;
-  /** When this version was saved, and when the next save replaced it. */
+  /** When the replaced version was saved, and when the change that replaced it happened. */
   savedAt: string;
   replacedAt: string;
-  /** Who saved it (null if that user is gone). */
+  /** Who made the change (null if unknown or that user is gone). */
   by: string | null;
-  /** The content, or null if it no longer passes the section's schema (it cannot be loaded into the editor). */
+  /** An edit, or an earlier version put back. */
+  kind: "edit" | "restore";
+  /** Top-level fields that differ between the previous content and the new content (empty when the new content was not recorded). */
+  changedFields: string[];
+  /** The previous content, or null if it no longer passes the section's schema (it cannot be loaded into the editor). */
   content: unknown;
 };
 
@@ -305,9 +311,9 @@ export async function listRevisions(db: Db, template: PageTemplate, key: string)
   const rows = (
     await db
       .prepare(
-        `SELECT r.id, r.content, r.saved_at, r.replaced_at, u.name AS by_name FROM page_section_revisions r
+        `SELECT r.id, r.content, r.saved_at, r.replaced_at, r.new_content, r.kind, u.name AS by_name FROM page_section_revisions r
            JOIN page_sections s ON s.id = r.section_id JOIN pages p ON p.id = s.page_id
-           LEFT JOIN users u ON u.id = r.saved_by
+           LEFT JOIN users u ON u.id = r.changed_by
           WHERE p.template = ?1 AND s.section_key = ?2 ORDER BY r.replaced_at DESC, r.id DESC LIMIT ${REVISIONS_KEPT}`,
       )
       .bind(template, key)
@@ -319,6 +325,51 @@ export async function listRevisions(db: Db, template: PageTemplate, key: string)
       const parsed = SECTION_TYPES[slot.type].schema.safeParse(JSON.parse(s(r.content)));
       if (parsed.success) content = parsed.data;
     } catch { /* an unreadable old version is listed without content */ }
-    return { id: s(r.id), savedAt: s(r.saved_at), replacedAt: s(r.replaced_at), by: r.by_name == null ? null : s(r.by_name), content };
+    let after: unknown = null;
+    try { after = r.new_content == null ? null : JSON.parse(s(r.new_content)); } catch { /* unreadable: no field list */ }
+    let before: unknown = null;
+    try { before = JSON.parse(s(r.content)); } catch { /* unreadable */ }
+    return { id: s(r.id), savedAt: s(r.saved_at), replacedAt: s(r.replaced_at), by: r.by_name == null ? null : s(r.by_name), kind: s(r.kind) === "restore" ? "restore" : "edit", changedFields: after ? changedFields(before, after) : [], content };
+  });
+}
+
+/** One earlier version, to put back: its previous content (checked against the section's schema now) and when it was replaced. Null if it is not this section's or no longer fits. */
+export async function getRevisionContent(db: Db, template: PageTemplate, key: string, revisionId: string): Promise<{ content: unknown; replacedAt: string } | null> {
+  const slot = slotOf(template, key);
+  if (!slot) return null;
+  const r = await db
+    .prepare("SELECT r.content, r.replaced_at FROM page_section_revisions r JOIN page_sections s ON s.id = r.section_id JOIN pages p ON p.id = s.page_id WHERE r.id = ?1 AND p.template = ?2 AND s.section_key = ?3")
+    .bind(revisionId, template, key)
+    .first<Row>();
+  if (!r) return null;
+  try {
+    const parsed = SECTION_TYPES[slot.type].schema.safeParse(JSON.parse(s(r.content)));
+    return parsed.success ? { content: parsed.data, replacedAt: s(r.replaced_at) } : null;
+  } catch { return null; }
+}
+
+export type RecentChange = { at: string; by: string | null; kind: "edit" | "restore"; where: string; section: string; changedFields: string[]; href: string };
+
+/** The latest content changes of the page sections, newest first. */
+export async function listRecentPageRevisions(db: Db, limit: number): Promise<RecentChange[]> {
+  const rows = (
+    await db
+      .prepare(
+        `SELECT r.replaced_at, r.kind, r.content, r.new_content, u.name AS by_name, p.template, s.section_key FROM page_section_revisions r
+           JOIN page_sections s ON s.id = r.section_id JOIN pages p ON p.id = s.page_id LEFT JOIN users u ON u.id = r.changed_by
+          ORDER BY r.replaced_at DESC, r.id DESC LIMIT ?1`,
+      )
+      .bind(limit)
+      .all<Row>()
+  ).results ?? [];
+  return rows.map((r) => {
+    const template = s(r.template) as PageTemplate;
+    let after: unknown = null, before: unknown = null;
+    try { after = r.new_content == null ? null : JSON.parse(s(r.new_content)); before = JSON.parse(s(r.content)); } catch { /* no field list */ }
+    return {
+      at: s(r.replaced_at), by: r.by_name == null ? null : s(r.by_name), kind: s(r.kind) === "restore" ? "restore" : "edit",
+      where: TEMPLATES[template]?.label ?? template, section: slotOf(template, s(r.section_key))?.name ?? s(r.section_key),
+      changedFields: after ? changedFields(before, after) : [], href: `/admin/pages/${templateSlug(template)}/${s(r.section_key)}`,
+    };
   });
 }

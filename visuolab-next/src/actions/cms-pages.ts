@@ -7,7 +7,7 @@ import { requireAdmin } from "@/lib/server/auth";
 import { getDb } from "@/lib/server/db";
 import { ipHash, requestHeaders, strictSameOrigin } from "@/lib/server/request";
 import { TEMPLATES, slotOf, templateSlug, type SectionErrors } from "@/lib/cms/registry";
-import { savePageSeo, saveSectionContent, setSectionEnabled } from "@/lib/cms/store";
+import { getRevisionContent, savePageSeo, saveSectionContent, setSectionEnabled } from "@/lib/cms/store";
 import type { PageTemplate } from "@/lib/cms/types";
 
 /*
@@ -66,6 +66,27 @@ export async function saveSection(_prev: CmsFormState, f: FormData): Promise<Cms
   await audit({
     action: "cms.section.update", userId: admin.id, userEmail: admin.email, entityType: "page_section", entityId: `${template}.${key}`,
     summary: `${TEMPLATES[template].label} / ${key}: ${res.changedFields.length ? `changed ${res.changedFields.join(", ")}` : "saved, nothing changed"}`, ipHash: await ipHash(h),
+  });
+  refreshPublic(template);
+  return { ok: true, updatedAt: res.updatedAt, nonce: nonce() };
+}
+
+/**
+ * Puts an earlier version of a section back: fields `template`, `key`, `revisionId` and `expectedUpdatedAt`. It is an ordinary save of that content
+ * (same checks, same version token, the current content is kept as a new previous version) marked as a restore, and it is audited.
+ */
+export async function restoreSection(_prev: CmsFormState, f: FormData): Promise<CmsFormState> {
+  const { admin, h } = await guard();
+  const template = text(f, "template");
+  if (!isTemplate(template)) return bad("Unknown page.");
+  const key = text(f, "key");
+  const rev = await getRevisionContent(getDb(), template, key, text(f, "revisionId"));
+  if (!rev) return bad("That version can no longer be restored: it is not a version of this section, or it does not fit the section any more.");
+  const res = await saveSectionContent(getDb(), { template, key, content: rev.content, expectedUpdatedAt: text(f, "expectedUpdatedAt"), userId: admin.id, kind: "restore" });
+  if (!res.ok) return res.kind === "invalid" ? { ok: false, kind: "invalid", errors: res.errors, nonce: nonce() } : { ok: false, kind: res.kind, nonce: nonce() };
+  await audit({
+    action: "cms.section.restore", userId: admin.id, userEmail: admin.email, entityType: "page_section", entityId: `${template}.${key}`,
+    summary: `${TEMPLATES[template].label} / ${key}: restored the version replaced on ${rev.replacedAt.slice(0, 16).replace("T", " ")} UTC${res.changedFields.length ? `; changed ${res.changedFields.join(", ")}` : "; nothing changed"}`, ipHash: await ipHash(h),
   });
   refreshPublic(template);
   return { ok: true, updatedAt: res.updatedAt, nonce: nonce() };

@@ -41,7 +41,7 @@ for (const f of migrations) {
   db.exec(readFileSync(join(ROOT, "migrations", f), "utf8"));
 }
 db.exec(readFileSync(join(ROOT, "db", "seed", "content.sql"), "utf8"));
-check(`${migrations.length} migrations apply in order (0020 last), then the content seed`, migrations.at(-1).startsWith("0020"));
+check(`${migrations.length} migrations apply in order (0021 last), then the content seed`, migrations.at(-1).startsWith("0021"));
 
 // ---- the real records -------------------------------------------------------------------------------------------------------------
 const services = rows("SELECT * FROM services ORDER BY position").map((r) => ({ id: r.id, input: rowToServiceInput(r, rows("SELECT case_study_id FROM service_case_studies WHERE service_id = ? ORDER BY position", r.id).map((l) => l.case_study_id)) }));
@@ -234,6 +234,18 @@ for (const { kind, sections, records, schema } of KINDS) {
   check("deleting a service forgets its switches, and only its own", rows("SELECT COUNT(*) c FROM entity_hidden_sections WHERE entity_id = ?", sid).at(0).c === 0 && rows("SELECT COUNT(*) c FROM entity_hidden_sections WHERE entity_id = ?", cid).at(0).c === 1);
   db.exec(`DELETE FROM case_studies WHERE id = '${cid}'`);
   check("the same for a case study", rows("SELECT COUNT(*) c FROM entity_hidden_sections").at(0).c === 0);
+}
+
+// ---- revisions record the whole change (migration 0021) ------------------------------------------------------------------------------------
+{
+  const T = "'2026-10-08T00:00:00.000Z'";
+  const sid = rows("SELECT id FROM services LIMIT 1")[0].id;
+  db.exec(`INSERT INTO entity_section_revisions (id, entity_type, entity_id, section_key, content, saved_at, replaced_at, new_content, kind) VALUES ('r_new', 'service', '${sid}', 'hero', '{"a":1}', ${T}, ${T}, '{"a":2}', 'restore')`);
+  const r = rows("SELECT new_content, kind FROM entity_section_revisions WHERE id = 'r_new'")[0];
+  check("a record's revision stores the new content and whether it was a restore", r.new_content === '{"a":2}' && r.kind === "restore");
+  rejects("a record revision's kind must be edit or restore", `INSERT INTO entity_section_revisions (id, entity_type, entity_id, section_key, content, saved_at, replaced_at, kind) VALUES ('r_bad', 'service', '${sid}', 'hero', '{}', ${T}, ${T}, 'other')`, /CHECK/);
+  rejects("a record revision's new content must be a JSON object", `INSERT INTO entity_section_revisions (id, entity_type, entity_id, section_key, content, saved_at, replaced_at, new_content) VALUES ('r_bad2', 'service', '${sid}', 'hero', '{}', ${T}, ${T}, '[1]')`, /CHECK/);
+  db.exec("DELETE FROM entity_section_revisions WHERE id = 'r_new'");
 }
 
 console.log(`\n${pass}/${pass + fail} checks passed`);

@@ -10,7 +10,7 @@ import Rich, { RichLines } from "@/components/site/ui/Rich";
 import { MediaField } from "./MediaPicker";
 
 /** An earlier saved version of the section (content is null if it no longer passes the section's checks). */
-export type RevisionView = { id: string; savedAt: string; replacedAt: string; by: string | null; content: unknown };
+export type RevisionView = { id: string; savedAt: string; replacedAt: string; by: string | null; kind: "edit" | "restore"; changedFields: string[]; content: unknown };
 
 /** One choice of a list that comes from the database (another case study, a category, ...). */
 export type PickOption = { value: string; label: string; status?: string };
@@ -288,6 +288,8 @@ function Field({ def, value, path, set, ctx, bare = false }: { def: FieldDef; va
 type Props = {
   /** The server action that saves this section, and the fields it is told which section this is (page + key, or kind + id + key). */
   action: (prev: CmsFormState, f: FormData) => Promise<CmsFormState>;
+  /** Puts an earlier version back (it is told the same `target`, the `revisionId` and the version token). */
+  restoreAction: (prev: CmsFormState, f: FormData) => Promise<CmsFormState>;
   target: Record<string, string>;
   /** The lists the choice fields draw from. */
   options?: Record<string, PickOption[]>;
@@ -305,7 +307,7 @@ type Props = {
  * Edits the content of one section. The form is described by `fields` (src/lib/cms/fields.ts); nothing is written until Save, Cancel puts back what is
  * stored, and the server checks everything again against the strict schema of the section (the same rules, whatever the browser sent).
  */
-export default function SectionEditor({ action, target, options = {}, fields, initial, updatedAt, damaged, media, cases, revisions }: Props) {
+export default function SectionEditor({ action, restoreAction, target, options = {}, fields, initial, updatedAt, damaged, media, cases, revisions }: Props) {
   const [value, setValue] = useState<Obj>(isObj(initial) ? initial : {});
   const [saved, setSaved] = useState<{ obj: Obj; stamp: string }>({ obj: isObj(initial) ? initial : {}, stamp: updatedAt });
   const [result, setResult] = useState<CmsFormState>(undefined);
@@ -323,6 +325,17 @@ export default function SectionEditor({ action, target, options = {}, fields, in
       const r = await action(undefined, fd);
       setResult(r);
       if (r?.ok) setSaved({ obj: value, stamp: r.updatedAt });
+    });
+  };
+  const restore = (revisionId: string) => {
+    const fd = new FormData();
+    for (const [k, v] of Object.entries(target)) fd.set(k, v);
+    fd.set("revisionId", revisionId);
+    fd.set("expectedUpdatedAt", saved.stamp);
+    start(async () => {
+      const r = await restoreAction(undefined, fd);
+      setResult(r);
+      if (r?.ok) window.location.reload(); // the page then shows the restored content and the new list of versions
     });
   };
   const edit = (f: FieldDef, v: unknown) => { setResult(undefined); setValue((cur) => ({ ...cur, [f.key]: v })); };
@@ -346,24 +359,29 @@ export default function SectionEditor({ action, target, options = {}, fields, in
         {fields.map((f) => <Field key={f.key} def={f} value={value[f.key]} path={f.key} set={(v) => edit(f, v)} ctx={ctx} />)}
       </section>
 
-      {revisions.length > 0 && (
-        <section className="form-card cms-versions">
-          <h2>Previous versions</h2>
-          <p className="hint">Each save keeps the version it replaces (the last {revisions.length >= 10 ? "10" : "few"}). Load one into the editor, check it, then save to make it live again.</p>
-          <ul>
-            {revisions.map((r) => (
-              <li key={r.id}>
-                <span>Saved {when(r.savedAt)}{r.by ? ` by ${r.by}` : ""}<small> · replaced {when(r.replacedAt)}</small></span>
-                {r.content && typeof r.content === "object" ? (
+      <section className="form-card cms-versions">
+        <h2>Versions</h2>
+        <p className="hint"><b>Last saved version:</b> the one in the editor, saved {when(saved.stamp)}. {revisions.length > 0 ? `Each change keeps the version it replaces (the last ${revisions.length >= 10 ? "10" : "few"}). Restore one to make it live again; the current one is kept as a new previous version.` : "Nothing has been replaced yet: after the next change the version it replaces appears here."}</p>
+        {dirty && revisions.length > 0 && <p className="hint">Save or cancel your changes before restoring a version.</p>}
+        <ul>
+          {revisions.map((r, i) => (
+            <li key={r.id}>
+              <span>
+                <b>{i === 0 ? "Previous version" : "Earlier version"}</b>, replaced {when(r.replacedAt)}{r.by ? ` by ${r.by}` : ""}{r.kind === "restore" ? " (by a restore)" : ""}
+                <small> · saved {when(r.savedAt)}{r.changedFields.length ? ` · the change touched: ${r.changedFields.join(", ")}` : ""}</small>
+              </span>
+              {r.content && typeof r.content === "object" ? (
+                <span className="rev-actions">
+                  <button type="button" className="primary" disabled={pending || dirty} onClick={() => restore(r.id)}>Restore this version</button>
                   <button type="button" disabled={pending} onClick={() => { setValue(r.content as Obj); setResult(undefined); }}>Load into the editor</button>
-                ) : (
-                  <small>Cannot be loaded (it no longer fits this section)</small>
-                )}
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+                </span>
+              ) : (
+                <small>Cannot be restored (it no longer fits this section)</small>
+              )}
+            </li>
+          ))}
+        </ul>
+      </section>
 
       <div className="savebar">
         <button type="submit" className="primary" disabled={pending || !dirty}>{pending ? "Saving…" : "Save section"}</button>

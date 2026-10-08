@@ -406,6 +406,29 @@ Every block that is drawn on a public page can be switched off and on again from
 
 **Audit.** Every switch is an audit entry (`cms.section.toggle`, `<kind>.section.toggle`) naming the section and "hidden" or "shown", and bumps the content version like every other change. Verification: `db:verify:pages` (every block switched off and on on a seeded database; its row and content unchanged; the locked ones refuse), `db:verify:entities` (which sections are locked or important; migration `0020`), and `scripts/qa/visibility-qa.mjs` in a browser.
 
+## 11e. Content revisions
+
+Every content change to a page section, or to a section of a service, case study or article, is kept as a **revision**: simple, one row per change, nothing to configure.
+
+| Field | Page sections (`page_section_revisions`) | Records (`entity_section_revisions`) |
+|---|---|---|
+| Which section | `section_id` | `entity_type`, `entity_id`, `section_key` |
+| Previous content | `content` | `content` |
+| New content | `new_content` | `new_content` |
+| Changed by | `changed_by` (a user; set to null if the user is deleted) | `replaced_by` |
+| Changed at | `replaced_at` | `replaced_at` |
+| Kind | `kind`: `edit` or `restore` | `kind`: `edit` or `restore` |
+
+`saved_at` (and `saved_by` on pages) say when and by whom the *previous* content had been saved. The last 10 revisions of each section are kept; a record's revisions are removed with the record. Rows written before migration `0021` have no new content and, on pages, no editor; the admin shows them as unknown and still restores them. Saving the same content again writes no revision. A change that is refused (invalid, stale version) writes none.
+
+**What the admin sees.** On every section screen, under the editor, a **Versions** panel: the last saved version (the one in the editor, with its time), then the **previous version** and the earlier ones, each with when it was replaced, by whom, whether the change was a restore, and which fields the change touched. Each has **Restore this version** and **Load into the editor**. **Recent changes** (`/admin/revisions`, in the sidebar under Content) lists the latest 50 changes across pages, services, case studies and articles, with who, where, the section, what changed and a link to the section.
+
+**Restore** is not a special write. It is an ordinary save of the old content: the same strict schema, the same references check, the same version token (an old screen gets a conflict and nothing is overwritten), the current content kept as a new previous version, marked `restore`, and an audit entry (`cms.section.restore`, `<kind>.section.restore`). The server accepts only a version of the same section, and only if it still fits the section's schema. The button is off while the editor has unsaved changes.
+
+**Audit.** Every content mutation is an audit entry that names the actor, the section and the fields, never the content: section saves and restores, switching a section on or off, page SEO, navigation, settings, integrations, media uploads, replacements and edits, and the create, save, publish, unpublish, archive, feature, reorder and delete of services, case studies and articles. Each entry also bumps the content version, which refreshes the cached public pages.
+
+**Verification.** `db:verify:pages` (revision fields, restore, recent list, constraints), `db:verify:entities` (migration `0021`), and `scripts/qa/revisions-qa.mjs` in a browser.
+
 ## 12. Validation strategy
 
 Four layers, each catching what the one before cannot:

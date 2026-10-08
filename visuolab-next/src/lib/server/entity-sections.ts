@@ -88,18 +88,20 @@ export async function sectionCards(kind: EntityKind, rec: Rec): Promise<SectionC
   }));
 }
 
-export type RevisionRow = { id: string; savedAt: string; replacedAt: string; by: string | null; content: unknown };
+export type RevisionRow = { id: string; savedAt: string; replacedAt: string; by: string | null; kind: "edit" | "restore"; changedFields: string[]; content: unknown };
 
 export async function entityRevisions(kind: EntityKind, id: string, key: string): Promise<RevisionRow[]> {
   const rows = (await getDb()
-    .prepare("SELECT r.id, r.content, r.saved_at, r.replaced_at, u.email AS by_email FROM entity_section_revisions r LEFT JOIN users u ON u.id = r.replaced_by WHERE r.entity_type = ?1 AND r.entity_id = ?2 AND r.section_key = ?3 ORDER BY r.replaced_at DESC, r.rowid DESC")
+    .prepare("SELECT r.id, r.content, r.new_content, r.kind, r.saved_at, r.replaced_at, COALESCE(NULLIF(u.name, ''), u.email) AS by_email FROM entity_section_revisions r LEFT JOIN users u ON u.id = r.replaced_by WHERE r.entity_type = ?1 AND r.entity_id = ?2 AND r.section_key = ?3 ORDER BY r.replaced_at DESC, r.rowid DESC")
     .bind(kind, id, key)
-    .all<{ id: string; content: string; saved_at: string; replaced_at: string; by_email: string | null }>()).results ?? [];
+    .all<{ id: string; content: string; new_content: string | null; kind: string; saved_at: string; replaced_at: string; by_email: string | null }>()).results ?? [];
   const schema = entitySection(kind, key)?.schema;
   return rows.map((r) => {
     let content: unknown = null;
     try { const p = schema?.safeParse(JSON.parse(r.content)); content = p?.success ? p.data : null; } catch { content = null; }
-    return { id: r.id, savedAt: r.saved_at, replacedAt: r.replaced_at, by: r.by_email, content };
+    let changedFieldsList: string[] = [];
+    try { if (r.new_content) changedFieldsList = changedKeys(JSON.parse(r.content), JSON.parse(r.new_content)); } catch { /* no field list */ }
+    return { id: r.id, savedAt: r.saved_at, replacedAt: r.replaced_at, by: r.by_email, kind: r.kind === "restore" ? "restore" : "edit", changedFields: changedFieldsList, content };
   });
 }
 
@@ -171,7 +173,7 @@ const changedKeys = (a: unknown, b: unknown): string[] => {
   return [...new Set([...Object.keys(x), ...Object.keys(y)])].filter((k) => !same(x[k], y[k]));
 };
 
-export async function saveEntitySection(a: { kind: EntityKind; id: string; key: string; content: unknown; expectedUpdatedAt: string; userId: string }): Promise<SaveResult> {
+export async function saveEntitySection(a: { kind: EntityKind; id: string; key: string; content: unknown; expectedUpdatedAt: string; userId: string; mode?: "edit" | "restore" }): Promise<SaveResult> {
   const section = entitySection(a.kind, a.key);
   const k = KINDS[a.kind];
   const rec = section ? await k.load(a.id) : null;
@@ -196,8 +198,8 @@ export async function saveEntitySection(a: { kind: EntityKind; id: string; key: 
   const db = getDb();
   const t = now();
   await db.batch([
-    db.prepare("INSERT INTO entity_section_revisions (id, entity_type, entity_id, section_key, content, saved_at, replaced_at, replaced_by) VALUES (?1,?2,?3,?4,?5,?6,?7,?8)")
-      .bind(crypto.randomUUID(), a.kind, a.id, a.key, JSON.stringify(before.success ? before.data : section.read(rec.input)), rec.updatedAt, t, a.userId),
+    db.prepare("INSERT INTO entity_section_revisions (id, entity_type, entity_id, section_key, content, saved_at, replaced_at, replaced_by, new_content, kind) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)")
+      .bind(crypto.randomUUID(), a.kind, a.id, a.key, JSON.stringify(before.success ? before.data : section.read(rec.input)), rec.updatedAt, t, a.userId, JSON.stringify(parsed.data), a.mode ?? "edit"),
     db.prepare(`DELETE FROM entity_section_revisions WHERE entity_type = ?1 AND entity_id = ?2 AND section_key = ?3 AND id NOT IN (
       SELECT id FROM entity_section_revisions WHERE entity_type = ?1 AND entity_id = ?2 AND section_key = ?3 ORDER BY replaced_at DESC, rowid DESC LIMIT ${KEEP})`).bind(a.kind, a.id, a.key),
   ]);
@@ -233,4 +235,39 @@ export async function setEntitySectionEnabled(a: { kind: EntityKind; id: string;
   if (on) await db.prepare("DELETE FROM entity_hidden_sections WHERE entity_type = ?1 AND entity_id = ?2 AND section_key = ?3").bind(kind, id, key).run();
   else await db.prepare("INSERT OR IGNORE INTO entity_hidden_sections (entity_type, entity_id, section_key, hidden_at, hidden_by) VALUES (?1, ?2, ?3, ?4, ?5)").bind(kind, id, key, now(), a.userId).run();
   return { ok: true, changed: was === on };
+}
+
+/** One earlier version of a section of a record, to put back: its previous content (checked against the section's schema now). Null if it is not this section's or no longer fits. */
+export async function getEntityRevision(kind: EntityKind, id: string, key: string, revisionId: string): Promise<{ content: unknown; replacedAt: string } | null> {
+  const section = entitySection(kind, key);
+  const r = section
+    ? await getDb().prepare("SELECT content, replaced_at FROM entity_section_revisions WHERE id = ?1 AND entity_type = ?2 AND entity_id = ?3 AND section_key = ?4").bind(revisionId, kind, id, key).first<{ content: string; replaced_at: string }>()
+    : null;
+  if (!section || !r) return null;
+  try {
+    const parsed = section.schema.safeParse(JSON.parse(r.content));
+    return parsed.success ? { content: parsed.data, replacedAt: r.replaced_at } : null;
+  } catch { return null; }
+}
+
+/** The latest content changes of services, case studies and articles, newest first. */
+export async function listRecentEntityRevisions(limit: number): Promise<import("@/lib/cms/store").RecentChange[]> {
+  const rows = (await getDb()
+    .prepare(`SELECT r.entity_type, r.entity_id, r.section_key, r.replaced_at, r.kind, r.content, r.new_content, COALESCE(NULLIF(u.name, ''), u.email) AS by_email, COALESCE(sv.title, cs.client_name, bp.title) AS title
+                FROM entity_section_revisions r LEFT JOIN users u ON u.id = r.replaced_by
+                LEFT JOIN services sv ON r.entity_type = 'service' AND sv.id = r.entity_id
+                LEFT JOIN case_studies cs ON r.entity_type = 'case_study' AND cs.id = r.entity_id
+                LEFT JOIN blog_posts bp ON r.entity_type = 'blog_post' AND bp.id = r.entity_id
+               ORDER BY r.replaced_at DESC, r.rowid DESC LIMIT ?1`)
+    .bind(limit)
+    .all<{ entity_type: EntityKind; entity_id: string; section_key: string; replaced_at: string; kind: string; content: string; new_content: string | null; by_email: string | null; title: string | null }>()).results ?? [];
+  return rows.map((r) => {
+    let fields: string[] = [];
+    try { if (r.new_content) fields = changedKeys(JSON.parse(r.content), JSON.parse(r.new_content)); } catch { /* no field list */ }
+    return {
+      at: r.replaced_at, by: r.by_email, kind: r.kind === "restore" ? "restore" : "edit",
+      where: `${ENTITIES[r.entity_type].noun[0]!.toUpperCase()}${ENTITIES[r.entity_type].noun.slice(1)}: ${(r.title ?? r.entity_id).replace(/<[^>]*>/g, "")}`,
+      section: entitySection(r.entity_type, r.section_key)?.name ?? r.section_key, changedFields: fields, href: `${ENTITIES[r.entity_type].admin}/${r.entity_id}/${r.section_key}`,
+    };
+  });
 }

@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { saveEntitySectionAction, setEntitySectionVisibility } from "@/actions/cms-entities";
+import { restoreEntitySectionAction, saveEntitySectionAction, setEntitySectionVisibility } from "@/actions/cms-entities";
 import Link from "@/components/site/ui/Link";
 import { ENTITIES, type EntityKind } from "@/lib/cms/entity";
 import { requireAdmin } from "@/lib/server/auth";
@@ -92,9 +92,9 @@ export async function EntitySectionScreen({ kind, id, sectionKey }: { kind: Enti
       </div>
       <p className="hint">{section.about}</p>
       <SectionEditor
-        action={saveEntitySectionAction} target={{ kind, id: rec.id, key: section.key }} options={options} fields={fields} initial={content}
+        action={saveEntitySectionAction} restoreAction={restoreEntitySectionAction} target={{ kind, id: rec.id, key: section.key }} options={options} fields={fields} initial={content}
         updatedAt={rec.updatedAt} damaged={false} media={media} cases={[]}
-        revisions={revisions.map((r) => ({ id: r.id, savedAt: r.savedAt, replacedAt: r.replacedAt, by: r.by, content: r.content }))}
+        revisions={revisions.map((r) => ({ id: r.id, savedAt: r.savedAt, replacedAt: r.replacedAt, by: r.by, kind: r.kind, changedFields: r.changedFields, content: r.content }))}
       />
     </>
   );

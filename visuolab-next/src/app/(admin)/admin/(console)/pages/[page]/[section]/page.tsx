@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "@/components/site/ui/Link";
-import { saveSection } from "@/actions/cms-pages";
+import { restoreSection, saveSection } from "@/actions/cms-pages";
 import SectionEditor from "@/components/admin/SectionEditor";
 import { fieldsFor } from "@/lib/cms/describe";
 import { SECTION_TYPES, TEMPLATES, slotOf, templateFromParam, templateSlug } from "@/lib/cms/registry";
@@ -35,7 +35,7 @@ export default async function SectionAdmin({ params }: { params: Promise<{ page:
       {!row ? (
         <p className="form-errors" role="status"><b>This section is not in the database yet.</b> The website shows its built-in text. Run <code>npm run db:seed:pages:remote</code>, then edit it here.</p>
       ) : (
-        <SectionEditor action={saveSection} target={{ template, key }} fields={fields} initial={row.content} updatedAt={row.updatedAt} damaged={row.damaged} media={media} cases={cases} revisions={revisions.map((r) => ({ id: r.id, savedAt: r.savedAt, replacedAt: r.replacedAt, by: r.by, content: r.content }))} />
+        <SectionEditor action={saveSection} restoreAction={restoreSection} target={{ template, key }} fields={fields} initial={row.content} updatedAt={row.updatedAt} damaged={row.damaged} media={media} cases={cases} revisions={revisions.map((r) => ({ id: r.id, savedAt: r.savedAt, replacedAt: r.replacedAt, by: r.by, kind: r.kind, changedFields: r.changedFields, content: r.content }))} />
       )}
     </>
   );
