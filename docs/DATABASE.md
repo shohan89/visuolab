@@ -35,6 +35,8 @@ Applied in order with `npm run db:migrate:local` (local), `npm run db:migrate:pr
 | `0010_case_study_featured.sql` | `case_studies.featured` flag (0/1) and an index; the seed marks the four home page cases. |
 | `0014_integration_events.sql` | `integrations.last_success_at`; table `integration_events` (activity log of integration runs, 30-day retention). See `INTEGRATION-MANAGEMENT.md`. |
 | `0015_navigation_cms.sql` | `navigation_items`: `type`, `page_ref`, `is_visible`, `open_in_new_tab`; the unique position index is dropped. See `/admin/navigation` in `ARCHITECTURE.md` section 8. |
+| `0017_page_section_revisions.sql` | **page_section_revisions**: the earlier saved versions of a section (the last 10 per section), for "Previous versions" in the Pages admin. |
+| `0016_page_cms.sql` | Page CMS: **pages**, **page_sections**, **page_section_refs** and the lookup lists **page_templates**, **page_section_types**. See `PAGE-CMS-ARCHITECTURE.md`. |
 | `0013_notification_delivery.sql` | `contact_submissions`: `notify_status`, `notify_provider`, `notify_message_id`, `notify_attempts`, `notify_last_attempt_at`, `idempotency_key` (unique when set), `content_hash`; existing rows get a status from what was recorded. See `INTEGRATIONS.md`. |
 | `0012_media_library.sql` | `media.caption`, `original_name`, `sha256` (64 hex characters) and two indexes; see `MEDIA.md`. |
 | `0011_blog_seo_fields.sql` | `blog_posts.canonical_url` (https only) and `og_image_id` (media, SET NULL), two indexes. Scheduled publishing needs no column (see `BLOG-CMS.md`). |

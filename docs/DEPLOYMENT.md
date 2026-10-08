@@ -175,6 +175,8 @@ npm run deploy
 
 Order matters: apply forward-compatible migrations first, then deploy the code that uses them.
 
+**The release that moves the pages to the page CMS** (migrations 0015 navigation and 0016 page CMS, `PAGE-CMS-ARCHITECTURE.md`): run `npm run db:migrate:remote`, then **`npm run db:seed:pages:remote`** (it writes the 9 pages and 35 sections; it is `INSERT OR IGNORE`, so it is safe to run again and never overwrites an editor's changes; it needs the content seed that was loaded at the first deploy), and only then `npm run deploy`. If the code is deployed first, or the seed is skipped, the pages still render: a page with no rows, or a database that cannot be read, is drawn from the built-in copy, which is the same copy. Compare before and after with `node scripts/qa/page-parity.mjs` against a local build.
+
 ### 8.3 Verify after deploy
 
 ```

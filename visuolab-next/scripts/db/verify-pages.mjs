@@ -1,0 +1,477 @@
+// Verifies the page CMS: migration 0016, the registry (templates, section types, schemas), the typed defaults and the store (save/load).
+//
+//   node --no-warnings scripts/db/verify-pages.mjs        builds an in-memory SQLite database from migrations/ and db/seed/content.sql
+//
+// It proves that the current website copy (src/lib/cms/defaults.ts) passes the schemas, that the database refuses what the model forbids
+// (unknown types, a second page per template, content that is not an object, a reference to nothing, deleting a file or case study in use),
+// and that the lookup tables written by the migration are the registry in code.
+import { DatabaseSync } from "node:sqlite";
+import { readFileSync, readdirSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+const imp = (p) => import(pathToFileURL(join(ROOT, p)).href);
+const { SECTION_TYPES, SECTION_TYPE_NAMES, TEMPLATES, TEMPLATE_NAMES, checkSection, refsOf } = await imp("src/lib/cms/registry.ts");
+const { PAGE_DEFAULTS, defaultContent } = await imp("src/lib/cms/defaults.ts");
+const store = await imp("src/lib/cms/store.ts");
+
+let pass = 0, fail = 0;
+const check = (name, ok, detail = "") => { ok ? pass++ : fail++; console.log(`${ok ? "PASS" : "FAIL"}  ${name}${detail ? "  — " + String(detail).slice(0, 160) : ""}`); };
+
+const db = new DatabaseSync(":memory:");
+db.exec("PRAGMA foreign_keys = ON");
+const q = (sql, ...a) => db.prepare(sql).all(...a);
+const one = (sql, ...a) => db.prepare(sql).get(...a);
+const rejects = (name, sql, pattern) => {
+  try { db.exec(sql); check(name, false, "statement was accepted"); } catch (e) { check(name, pattern.test(String(e.message)), String(e.message)); }
+};
+const NOW = "'2026-10-08T00:00:00.000Z'";
+
+// ---- build ------------------------------------------------------------------------------------------------------
+const migrations = readdirSync(join(ROOT, "migrations")).filter((f) => f.endsWith(".sql")).sort();
+for (const f of migrations) {
+  if (f.startsWith("0008")) db.exec("INSERT INTO submissions (id, name, email, message, status, source, created_at, updated_at) VALUES ('legacy-1', 'Old Row', 'old@example.com', 'sent before the rename', 'read', 'contact-page', '2026-10-01T00:00:00.000Z', '2026-10-01T00:00:00.000Z')");
+  db.exec(readFileSync(join(ROOT, "migrations", f), "utf8"));
+}
+db.exec(readFileSync(join(ROOT, "db", "seed", "content.sql"), "utf8"));
+check(`${migrations.length} migrations apply in order, then the content seed`, migrations.includes("0016_page_cms.sql"));
+
+// ---- the lookup tables are the registry --------------------------------------------------------------------------
+const dbTemplates = q("SELECT template, label, route FROM page_templates ORDER BY template");
+check("page_templates holds exactly the templates of the registry, with their label and route", JSON.stringify(dbTemplates.map((t) => [t.template, t.label, t.route])) === JSON.stringify([...TEMPLATE_NAMES].sort().map((n) => [n, TEMPLATES[n].label, TEMPLATES[n].route])));
+const dbTypes = q("SELECT type, label, version FROM page_section_types ORDER BY type");
+check(`page_section_types holds exactly the ${SECTION_TYPE_NAMES.length} section types of the registry, with label and version`, JSON.stringify(dbTypes.map((t) => [t.type, t.label, t.version])) === JSON.stringify([...SECTION_TYPE_NAMES].sort().map((n) => [n, SECTION_TYPES[n].label, SECTION_TYPES[n].version])),
+  dbTypes.map((t) => t.type).filter((t) => !SECTION_TYPE_NAMES.includes(t)).concat(SECTION_TYPE_NAMES.filter((t) => !dbTypes.some((d) => d.type === t))).join(","));
+
+// ---- the registry is consistent ---------------------------------------------------------------------------------
+let slotsOk = true, anchorsOk = true, typesUsed = new Set();
+for (const t of TEMPLATE_NAMES) {
+  const keys = TEMPLATES[t].sections.map((s) => s.key);
+  if (new Set(keys).size !== keys.length) slotsOk = false;
+  const anchors = TEMPLATES[t].sections.map((s) => s.anchor).filter(Boolean);
+  if (new Set(anchors).size !== anchors.length) anchorsOk = false;
+  for (const s of TEMPLATES[t].sections) typesUsed.add(s.type);
+}
+check("section keys are unique within each template, and anchors too", slotsOk && anchorsOk);
+check("every section type is used by at least one template section", SECTION_TYPE_NAMES.every((n) => typesUsed.has(n)), SECTION_TYPE_NAMES.filter((n) => !typesUsed.has(n)).join(","));
+check("every template section has a default, and every default is a section of its template",
+  TEMPLATE_NAMES.every((t) => TEMPLATES[t].sections.every((s) => PAGE_DEFAULTS[t][s.key] !== undefined) && Object.keys(PAGE_DEFAULTS[t]).every((k) => TEMPLATES[t].sections.some((s) => s.key === k))));
+
+// ---- the current website copy passes its schemas ----------------------------------------------------------------
+const failures = [];
+const refCounts = {};
+for (const t of TEMPLATE_NAMES) for (const s of TEMPLATES[t].sections) {
+  const r = checkSection(t, s.key, PAGE_DEFAULTS[t][s.key]);
+  if (!r.ok) failures.push(`${t}.${s.key}: ${Object.entries(r.errors).map(([k, m]) => `${k}: ${m}`).join("; ")}`);
+  else refCounts[s.type] = (refCounts[s.type] ?? 0) + r.refs.length;
+}
+check(`all ${Object.values(PAGE_DEFAULTS).reduce((n, p) => n + Object.keys(p).length, 0)} default sections (the current copy of the website) pass their schemas`, failures.length === 0, failures.join(" | "));
+check("every media/case path the registry declares finds a reference in the current content (no typo in a path)",
+  SECTION_TYPE_NAMES.every((n) => (SECTION_TYPES[n].media.length + SECTION_TYPES[n].cases.length === 0) || (refCounts[n] ?? 0) > 0), SECTION_TYPE_NAMES.filter((n) => SECTION_TYPES[n].media.length + SECTION_TYPES[n].cases.length > 0 && !(refCounts[n] > 0)).join(","));
+
+// ---- store pages and sections the way the seed step will ----------------------------------------------------------
+let n = 0;
+for (const t of TEMPLATE_NAMES) {
+  db.prepare("INSERT INTO pages (id, slug, title, status, template, created_at, updated_at) VALUES (?, ?, ?, 'published', ?, ?, ?)").run(`page_${t}`, t.replace(/_/g, "-"), TEMPLATES[t].label, t, "2026-10-08T00:00:00.000Z", "2026-10-08T00:00:00.000Z");
+  TEMPLATES[t].sections.forEach((s, i) => {
+    const r = checkSection(t, s.key, PAGE_DEFAULTS[t][s.key]);
+    const id = `sec_${t}_${s.key}`;
+    db.prepare("INSERT INTO page_sections (id, page_id, section_key, section_type, position, is_enabled, content, schema_version, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 1, ?, 1, ?, ?)").run(id, `page_${t}`, s.key, s.type, i, JSON.stringify(r.content), "2026-10-08T00:00:00.000Z", "2026-10-08T00:00:00.000Z");
+    for (const ref of r.refs) {
+      db.prepare("INSERT INTO page_section_refs (section_id, field_path, kind, media_id, case_study_id) VALUES (?, ?, ?, ?, ?)").run(id, ref.path, ref.kind, ref.kind === "media" ? ref.id : null, ref.kind === "case_study" ? ref.id : null);
+    }
+    n++;
+  });
+}
+check(`${n} sections and their references are stored (every referenced media file and case study exists: the foreign keys accept them)`, one("SELECT COUNT(*) c FROM page_sections").c === n && one("SELECT COUNT(*) c FROM page_section_refs").c > 20, `${one("SELECT COUNT(*) c FROM page_section_refs").c} references`);
+check("sections are read back in page order with their content intact",
+  JSON.stringify(JSON.parse(one("SELECT content FROM page_sections WHERE id = 'sec_home_hero'").content)) === JSON.stringify(checkSection("home", "hero", PAGE_DEFAULTS.home.hero).content)
+  && q("SELECT section_key FROM page_sections WHERE page_id = 'page_home' ORDER BY position").map((r) => r.section_key).join() === TEMPLATES.home.sections.map((s) => s.key).join());
+check("one section is changed on its own: the page and the other sections are untouched",
+  (() => {
+    const before = q("SELECT id, updated_at FROM page_sections WHERE id <> 'sec_home_hero'").map((r) => r.updated_at).join();
+    db.prepare("UPDATE page_sections SET content = ?, updated_at = '2026-10-09T00:00:00.000Z' WHERE id = 'sec_home_hero'").run(JSON.stringify({ ...JSON.parse(one("SELECT content FROM page_sections WHERE id = 'sec_home_hero'").content), eyebrow: "Changed" }));
+    return q("SELECT id, updated_at FROM page_sections WHERE id <> 'sec_home_hero'").map((r) => r.updated_at).join() === before && one("SELECT updated_at u FROM pages WHERE id = 'page_home'").u === "2026-10-08T00:00:00.000Z";
+  })());
+db.prepare("UPDATE page_sections SET content = ?, updated_at = '2026-10-08T00:00:00.000Z' WHERE id = 'sec_home_hero'").run(JSON.stringify(checkSection("home", "hero", PAGE_DEFAULTS.home.hero).content));
+
+// ---- what the database refuses -------------------------------------------------------------------------------------
+const section = (over = {}) => ({ id: "s_x", page_id: "page_home", section_key: "extra", section_type: "home_hero", position: 99, content: "{}", ...over });
+const insertSection = (o) => { const s = section(o); return `INSERT INTO page_sections (id, page_id, section_key, section_type, position, content, created_at, updated_at) VALUES ('${s.id}', '${s.page_id}', '${s.section_key}', '${s.section_type}', ${s.position}, '${s.content}', ${NOW}, ${NOW})`; };
+rejects("a section type that is not in the list is refused", insertSection({ section_type: "free_html" }), /FOREIGN KEY/);
+rejects("a section must belong to an existing page", insertSection({ page_id: "page_nope" }), /FOREIGN KEY/);
+rejects("a page cannot have two sections with the same key", insertSection({ section_key: "hero" }), /UNIQUE/);
+rejects("section content must be valid JSON", insertSection({ content: "{not json" }), /CHECK/);
+rejects("section content must be a JSON object, not a list or text", insertSection({ content: "[1,2]" }), /CHECK/);
+rejects("a section key with capitals or spaces is refused", insertSection({ section_key: "Hero Block" }), /CHECK/);
+rejects("a position cannot be negative", insertSection({ position: -1 }), /CHECK/);
+rejects("a second page for the same template is refused (the set of pages is fixed)", `INSERT INTO pages (id, slug, title, template, created_at, updated_at) VALUES ('p2', 'home-two', 'x', 'home', ${NOW}, ${NOW})`, /UNIQUE/);
+rejects("a page needs a known template", `INSERT INTO pages (id, slug, title, template, created_at, updated_at) VALUES ('p3', 'landing', 'x', 'landing', ${NOW}, ${NOW})`, /FOREIGN KEY/);
+rejects("a page slug cannot hold capitals, spaces or slashes", `INSERT INTO pages (id, slug, title, template, created_at, updated_at) VALUES ('p4', 'About Us/x', 'x', 'about', ${NOW}, ${NOW})`, /CHECK|UNIQUE/);
+rejects("a page status outside draft/published/archived is refused", "UPDATE pages SET status = 'live' WHERE id = 'page_home'", /CHECK/);
+rejects("a canonical address must be https or a path", "UPDATE pages SET canonical_url = 'http://example.com/x' WHERE id = 'page_home'", /CHECK/);
+rejects("a share picture must be a media file", "UPDATE pages SET og_image_id = 'media_nope' WHERE id = 'page_home'", /FOREIGN KEY/);
+rejects("a reference must point at an existing media file", "INSERT INTO page_section_refs (section_id, field_path, kind, media_id) VALUES ('sec_home_hero', 'x', 'media', 'media_nope')", /FOREIGN KEY/);
+rejects("a reference must point at an existing case study", "INSERT INTO page_section_refs (section_id, field_path, kind, case_study_id) VALUES ('sec_home_hero', 'x', 'case_study', 'case_nope')", /FOREIGN KEY/);
+rejects("a reference is exactly one of media or case study", "INSERT INTO page_section_refs (section_id, field_path, kind, media_id, case_study_id) VALUES ('sec_home_hero', 'x', 'media', 'media_earth', 'case_orbit')", /CHECK/);
+rejects("a reference's kind and its id must match", "INSERT INTO page_section_refs (section_id, field_path, kind, case_study_id) VALUES ('sec_home_hero', 'x', 'media', 'case_orbit')", /CHECK/);
+rejects("a media file used by a section cannot be deleted", "DELETE FROM media WHERE id = 'media_showreel'", /FOREIGN KEY/);
+rejects("a case study used by a section cannot be deleted", "DELETE FROM case_studies WHERE id = 'case_verdant'", /FOREIGN KEY/);
+{
+  const refs = one("SELECT COUNT(*) c FROM page_section_refs WHERE section_id = 'sec_home_work'").c;
+  db.exec("DELETE FROM page_sections WHERE id = 'sec_home_work'");
+  check(`deleting a section removes its references (${refs})`, refs === 4 && one("SELECT COUNT(*) c FROM page_section_refs WHERE section_id = 'sec_home_work'").c === 0);
+  db.exec("DELETE FROM pages WHERE id = 'page_about'");
+  check("deleting a page removes its sections and their references", one("SELECT COUNT(*) c FROM page_sections WHERE page_id = 'page_about'").c === 0 && one("SELECT COUNT(*) c FROM page_section_refs WHERE section_id LIKE 'sec_about_%'").c === 0);
+}
+
+// ---- what the schemas refuse -------------------------------------------------------------------------------------------
+const clone = (t, k) => structuredClone(PAGE_DEFAULTS[t][k]);
+const bad = (name, t, k, mutate, pattern) => {
+  const c = clone(t, k); mutate(c);
+  const r = checkSection(t, k, c);
+  check(name, !r.ok && (!pattern || Object.entries(r.errors).some(([p, m]) => pattern.test(`${p} ${m}`))), r.ok ? "accepted" : Object.entries(r.errors).map(([p, m]) => `${p}: ${m}`).join("; "));
+};
+check("a section the template does not have is refused", !checkSection("home", "sidebar", {}).ok && /no section/.test(checkSection("home", "sidebar", {}).errors.form));
+bad("a key the schema does not name is refused (no free-form fields)", "home", "hero", (c) => { c.extra = "x"; }, /extra|Unrecognized/i);
+bad("home: the four numbers cannot be three", "home", "why", (c) => { c.stats.pop(); }, /stats/);
+bad("home: three service columns, not four", "home", "services", (c) => { c.columns.push(structuredClone(c.columns[0])); }, /columns/);
+bad("home: the case showcase needs at least two cases", "home", "work", (c) => { c.caseIds = ["case_orbit"]; }, /caseIds/);
+bad("home: a case study can be chosen once", "home", "work", (c) => { c.caseIds = ["case_orbit", "case_orbit"]; }, /once/);
+bad("home: process steps are 3 to 6 (one step would break the rail)", "home", "process", (c) => { c.steps = c.steps.slice(0, 1); }, /steps/);
+bad("home: a title may use <em> and <b> only", "home", "hero", (c) => { c.title = "Hello <script>x</script>"; }, /title/);
+bad("home: an <em> must be closed", "home", "hero", (c) => { c.title = "Hello <em>world"; }, /title/);
+bad("home: a link of the form javascript:… is refused", "home", "hero", (c) => { c.primaryCta.href = "javascript:alert(1)"; }, /primaryCta\.href/);
+bad("home: a link to another host without https is refused", "home", "hero", (c) => { c.primaryCta.href = "//evil.example"; }, /primaryCta\.href/);
+bad("home: text over its length limit is refused", "home", "hero", (c) => { c.eyebrow = "x".repeat(41); }, /eyebrow/);
+bad("home: angle brackets in plain text are refused", "home", "industries", (c) => { c.items[0].title = "<b>SaaS</b>"; }, /items\.0\.title/);
+bad("about: the timeline has five milestones", "about", "story", (c) => { c.items.pop(); }, /items/);
+bad("about: an office needs a real time zone", "about", "places", (c) => { c.items[0].timeZone = "Mars/Olympus"; }, /timeZone/);
+bad("about: a flag that is not drawn in code is refused", "about", "places", (c) => { c.items[0].flag = "FR"; }, /flag/);
+bad("about: the headline has at most three lines", "about", "hero", (c) => { c.title = "a\nb\nc\nd"; }, /title/);
+bad("about: the FAQ needs at least three questions", "about", "faq", (c) => { c.items = c.items.slice(0, 2); }, /items/);
+bad("contact: an option list cannot repeat an option", "contact", "form", (c) => { c.needOptions[1] = c.needOptions[0].toUpperCase(); }, /twice/);
+bad("contact: the form keeps between three and seven options", "contact", "form", (c) => { c.budgetOptions = ["a", "b"]; }, /budgetOptions/);
+bad("shared: the closing band has exactly four floating pictures", "shared", "cta", (c) => { c.floaters.pop(); }, /floaters/);
+bad("shared: a review dot must be a #rrggbb colour", "shared", "reviews", (c) => { c.items[0].dot = "red"; }, /dot/);
+bad("shared: a logo style outside the four is refused", "shared", "logos", (c) => { c.items[0].style = "script"; }, /style/);
+bad("shared: the footer has the six badges, no more", "shared", "footer", (c) => { c.badges.medium = { line1: "a", line2: "b" }; }, /badges/);
+bad("works: the five filter chips keep their keys", "works", "hero", (c) => { delete c.chipLabels.motion; }, /chipLabels/);
+
+// ---- what the schemas accept ---------------------------------------------------------------------------------------------
+{
+  const c = clone("home", "hero"); c.secondaryCta = null;
+  check("an optional part can be switched off with null (home: no second link)", checkSection("home", "hero", c).ok);
+  const f = clone("about", "faq"); f.cta = null; f.lead = "";
+  check("optional text can be left empty (about FAQ without the button or the intro)", checkSection("about", "faq", f).ok);
+  const e = clone("contact", "intro"); e.direct[0].text = "{email}";
+  check("{email} is allowed as text (the site's contact e-mail is put in when the page is drawn)", checkSection("contact", "intro", e).ok);
+  const refs = refsOf("reviews_collection", clone("shared", "reviews"));
+  check("references are read from list items (reviews: one photo per review, path items.N.avatar.id)", refs.length === 5 && refs.every((r) => r.kind === "media" && /^items\.\d\.avatar\.id$/.test(r.path)));
+  const r2 = refsOf("cta_band", clone("shared", "cta"));
+  check("references are read from lists of ids (CTA band: 3 photos + 4 pictures)", r2.length === 7);
+}
+
+// ---- the store: load with fallback, save with checks ------------------------------------------------------------------------------
+const d1 = {
+  prepare(sql) {
+    const st = db.prepare(sql);
+    const make = (a) => ({
+      bind: (...b) => make(b),
+      first: async () => st.get(...a) ?? null,
+      all: async () => ({ results: st.all(...a).map((r) => ({ ...r })) }),
+      run: async () => { const r = st.run(...a); return { success: true, meta: { changes: Number(r.changes) } }; },
+    });
+    return make([]);
+  },
+  batch: async (stmts) => {
+    db.exec("BEGIN");
+    try { const out = []; for (const s of stmts) out.push(await s.run()); db.exec("COMMIT"); return out; } catch (e) { db.exec("ROLLBACK"); throw e; }
+  },
+};
+const seedSection = (tpl, key, i) => {
+  const r = checkSection(tpl, key, PAGE_DEFAULTS[tpl][key]);
+  const id = `sec_${tpl}_${key}`;
+  db.prepare("INSERT INTO page_sections (id, page_id, section_key, section_type, position, is_enabled, content, schema_version, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 1, ?, 1, ?, ?)").run(id, `page_${tpl}`, key, r.type, i, JSON.stringify(r.content), "2026-10-08T00:00:00.000Z", "2026-10-08T00:00:00.000Z");
+  for (const ref of r.refs) db.prepare("INSERT INTO page_section_refs (section_id, field_path, kind, media_id, case_study_id) VALUES (?, ?, ?, ?, ?)").run(id, ref.path, ref.kind, ref.kind === "media" ? ref.id : null, ref.kind === "case_study" ? ref.id : null);
+};
+const T0 = "2026-10-08T00:00:00.000Z";
+const loadedAbout = await store.loadPage(d1, "about"); // the About page was deleted above: nothing seeded
+check("a page that is not seeded is drawn entirely from the defaults, with no error", loadedAbout.page === null && loadedAbout.issues.length === 0 && JSON.stringify(loadedAbout.content) === JSON.stringify(PAGE_DEFAULTS.about) && Object.values(loadedAbout.enabled).every(Boolean));
+const loadedHome = await store.loadPage(d1, "home"); // 'work' was deleted above
+check("a section whose row is missing is replaced by its default and reported", loadedHome.issues.length === 1 && /home\.work: no row/.test(loadedHome.issues[0]) && JSON.stringify(loadedHome.content.work) === JSON.stringify(PAGE_DEFAULTS.home.work));
+seedSection("home", "work", 5);
+{
+  const l = await store.loadPage(d1, "home");
+  check("a fully seeded page loads exactly the stored content, in the template's shape, with nothing reported", l.page?.template === "home" && l.issues.length === 0 && Object.keys(l.content).join() === TEMPLATES.home.sections.map((s) => s.key).join() && JSON.stringify(l.content.why) === JSON.stringify(PAGE_DEFAULTS.home.why));
+  const bad3 = structuredClone(PAGE_DEFAULTS.home.why); bad3.stats.pop();
+  db.prepare("UPDATE page_sections SET content = ? WHERE id = 'sec_home_why'").run(JSON.stringify(bad3));
+  const l2 = await store.loadPage(d1, "home");
+  check("a stored section that no longer passes its schema is replaced by its default and reported", l2.issues.length === 1 && /home\.why: .*schema.*stats/.test(l2.issues[0]) && l2.content.why.stats.length === 4, l2.issues.join(" | "));
+  db.prepare("UPDATE page_sections SET content = ? WHERE id = 'sec_home_why'").run(JSON.stringify(PAGE_DEFAULTS.home.why));
+  db.prepare("UPDATE page_sections SET section_type = 'manifesto' WHERE id = 'sec_home_why'").run();
+  const l3 = await store.loadPage(d1, "home");
+  check("a row of the wrong type for its place is replaced by the default and reported", l3.issues.length === 1 && /home\.why: type is manifesto/.test(l3.issues[0]));
+  db.prepare("UPDATE page_sections SET section_type = 'why_stats' WHERE id = 'sec_home_why'").run();
+}
+
+const stamp = (id) => one("SELECT updated_at u FROM page_sections WHERE id = ?", id).u;
+const refsOfSection = (id) => q("SELECT field_path, kind, media_id, case_study_id FROM page_section_refs WHERE section_id = ? ORDER BY field_path", id);
+const save = (key, content, expected, tpl = "home") => store.saveSectionContent(d1, { template: tpl, key, content, expectedUpdatedAt: expected, userId: "u1" });
+db.exec(`INSERT INTO users (id, email, name, password_hash, role, created_at, updated_at) VALUES ('u1', 'editor@example.com', 'Ed', 'x', 'admin', ${NOW}, ${NOW})`);
+{
+  const next = structuredClone(PAGE_DEFAULTS.home.showreel); next.poster = { id: "media_earth", alt: "A globe" }; next.tag = "Showreel 2027";
+  const r = await save("showreel", next, T0);
+  const row = one("SELECT content, schema_version v, updated_by u, updated_at ua FROM page_sections WHERE id = 'sec_home_showreel'");
+  check("saving a valid section writes its content, version, time and editor", r.ok && JSON.parse(row.content).tag === "Showreel 2027" && row.v === 1 && row.u === "u1" && row.ua === r.updatedAt && r.updatedAt > T0);
+  check("the save reports which fields changed (names only)", r.ok && r.changedFields.join() === "poster,tag", r.changedFields?.join());
+  check("the section's references are rewritten with it (the poster now points at the new file)", JSON.stringify(refsOfSection("sec_home_showreel").map((x) => [x.field_path, x.media_id])) === JSON.stringify([["poster.id", "media_earth"], ["video.id", "media_showreel"]]));
+  check("saving one section leaves the page and the other sections as they were", one("SELECT updated_at u FROM pages WHERE id = 'page_home'").u === T0 && stamp("sec_home_hero") === T0 && stamp("sec_home_why") === T0);
+  const again = await save("showreel", next, T0); // the stale token
+  check("a save made from an older version is refused as a conflict and changes nothing", !again.ok && again.kind === "conflict" && JSON.parse(one("SELECT content FROM page_sections WHERE id = 'sec_home_showreel'").content).tag === "Showreel 2027");
+  {
+    // another editor saves between the check and the write: the guarded update must lose, and the reference rows must not change either
+    const racing = { prepare: (s) => d1.prepare(s), batch: async (stmts) => { db.prepare("UPDATE page_sections SET updated_at = '2099-01-01T00:00:00.000Z' WHERE id = 'sec_home_why'").run(); return d1.batch(stmts); } };
+    const keep = JSON.stringify(refsOfSection("sec_home_why")) + one("SELECT content FROM page_sections WHERE id = 'sec_home_why'").content;
+    const c = structuredClone(PAGE_DEFAULTS.home.why); c.title = "Changed <em>title</em>";
+    const lost = await store.saveSectionContent(racing, { template: "home", key: "why", content: c, expectedUpdatedAt: stamp("sec_home_why"), userId: "u1" });
+    check("two saves at the same moment: the later write loses atomically (no content, no reference change)", !lost.ok && lost.kind === "conflict" && JSON.stringify(refsOfSection("sec_home_why")) + one("SELECT content FROM page_sections WHERE id = 'sec_home_why'").content === keep);
+    db.prepare("UPDATE page_sections SET updated_at = ? WHERE id = 'sec_home_why'").run(T0);
+  }
+  const ok2 = await save("showreel", PAGE_DEFAULTS.home.showreel, r.updatedAt);
+  check("a save made from the current version is accepted (the token moves on)", ok2.ok && ok2.updatedAt > r.updatedAt);
+}
+{
+  const before = JSON.stringify(refsOfSection("sec_home_services"));
+  const stampBefore = stamp("sec_home_services");
+  const c = structuredClone(PAGE_DEFAULTS.home.services); c.columns.pop();
+  const r1 = await save("services", c, stampBefore);
+  check("an invalid section is refused with the field path and nothing is written", !r1.ok && r1.kind === "invalid" && "columns" in r1.errors && stamp("sec_home_services") === stampBefore && JSON.stringify(refsOfSection("sec_home_services")) === before);
+  const c2 = structuredClone(PAGE_DEFAULTS.home.services); c2.bookBar.avatar = { id: "media_nope", alt: "" };
+  const r2 = await save("services", c2, stampBefore);
+  check("a picture that is not in the media library is refused", !r2.ok && r2.kind === "invalid" && /library/.test(r2.errors["bookBar.avatar.id"]) && stamp("sec_home_services") === stampBefore);
+  const c3 = structuredClone(PAGE_DEFAULTS.home.showreel); c3.video = { id: "media_earth", alt: "" };
+  const r3 = await save("showreel", c3, stamp("sec_home_showreel"));
+  check("a video field refuses an image (the file must be the kind the field needs)", !r3.ok && r3.kind === "invalid" && /video/.test(r3.errors["video.id"]));
+  const c4 = structuredClone(PAGE_DEFAULTS.home.showreel); c4.poster = { id: "media_showreel", alt: "" };
+  const r4 = await save("showreel", c4, stamp("sec_home_showreel"));
+  check("an image field refuses a video", !r4.ok && r4.kind === "invalid" && /image/.test(r4.errors["poster.id"]));
+  const c5 = structuredClone(PAGE_DEFAULTS.home.work); c5.caseIds = ["case_orbit", "case_does_not_exist"];
+  const r5 = await save("work", c5, stamp("sec_home_work"));
+  check("a case study that does not exist is refused", !r5.ok && r5.kind === "invalid" && /no longer exists/.test(r5.errors["caseIds.1"]));
+  const r6 = await save("sidebar", {}, T0);
+  check("a section the template does not have is refused", !r6.ok && r6.kind === "invalid" && /no section/.test(r6.errors.form));
+  const r7 = await save("hero", structuredClone(PAGE_DEFAULTS.about.hero), T0, "about");
+  check("a section of a page that has not been seeded is reported missing", !r7.ok && r7.kind === "missing");
+  const r8 = await save("hero", { ...structuredClone(PAGE_DEFAULTS.home.hero), injected: "x" }, stamp("sec_home_hero"));
+  check("an unknown field is refused on save (nothing can be added to a section)", !r8.ok && r8.kind === "invalid" && /Unrecognized/.test(r8.errors.form));
+  const r9 = await save("hero", null, stamp("sec_home_hero"));
+  check("content that is not an object is refused", !r9.ok && r9.kind === "invalid");
+}
+
+{
+  const off = await store.setSectionEnabled(d1, "home", "logos", false, "u1");
+  const l = await store.loadPage(d1, "home");
+  check("a section that may be hidden is hidden, its content kept", off.ok && l.enabled.logos === false && JSON.stringify(l.content.logos) === JSON.stringify(PAGE_DEFAULTS.home.logos));
+  const on = await store.setSectionEnabled(d1, "home", "logos", true, "u1");
+  check("and shown again", on.ok && (await store.loadPage(d1, "home")).enabled.logos === true);
+  const locked = await store.setSectionEnabled(d1, "home", "hero", false, "u1");
+  check("a section other pages link to cannot be hidden", !locked.ok && locked.kind === "locked" && (await store.loadPage(d1, "home")).enabled.hero === true);
+  const careers = await store.setSectionEnabled(d1, "about", "careers", false, "u1");
+  check("Careers (linked from the header and footer) cannot be hidden", !careers.ok && careers.kind === "locked");
+  const nope = await store.setSectionEnabled(d1, "home", "sidebar", false, "u1");
+  check("hiding a section the template does not have is refused", !nope.ok && nope.kind === "missing");
+}
+
+{
+  const tok = () => one("SELECT updated_at u FROM pages WHERE id = 'page_home'").u;
+  const seo = { seoTitle: "Visuolab — Digital product design", seoDescription: "Visuolab is a design agency that unites brand, website and product into one story.", ogImageId: "media_earth", canonicalUrl: "", noindex: false };
+  const r = await store.savePageSeo(d1, "home", seo, tok(), "u1");
+  const row = one("SELECT seo_title, seo_description, og_image_id, canonical_url, noindex FROM pages WHERE id = 'page_home'");
+  check("page SEO is saved; empty text is stored as NULL (use the default)", r.ok && row.seo_title === seo.seoTitle && row.og_image_id === "media_earth" && row.canonical_url === null && row.noindex === 0);
+  const cleared = await store.savePageSeo(d1, "home", { seoTitle: "", seoDescription: "", ogImageId: "", canonicalUrl: "", noindex: true }, tok(), "u1");
+  const row2 = one("SELECT seo_title, seo_description, og_image_id, noindex FROM pages WHERE id = 'page_home'");
+  check("clearing the fields goes back to the defaults, and noindex can be set", cleared.ok && row2.seo_title === null && row2.seo_description === null && row2.og_image_id === null && row2.noindex === 1);
+  const stale = await store.savePageSeo(d1, "home", seo, T0, "u1");
+  check("page SEO saved from an older version is a conflict", !stale.ok && stale.kind === "conflict");
+  const badSeo = [
+    ["a description under 20 characters", { ...seo, seoDescription: "Too short" }, "seoDescription"],
+    ["a title over 70 characters", { ...seo, seoTitle: "x".repeat(71) }, "seoTitle"],
+    ["markup in the title", { ...seo, seoTitle: "<b>x</b>" }, "seoTitle"],
+    ["a canonical address that is http", { ...seo, canonicalUrl: "http://example.com" }, "canonicalUrl"],
+    ["a canonical address that is javascript:", { ...seo, canonicalUrl: "javascript:alert(1)" }, "canonicalUrl"],
+    ["a share picture that is not in the library", { ...seo, ogImageId: "media_nope" }, "ogImageId"],
+    ["a share picture that is a video", { ...seo, ogImageId: "media_showreel" }, "ogImageId"],
+    ["an unknown field", { ...seo, robots: "all" }, "form"],
+  ];
+  for (const [name, input, field] of badSeo) {
+    const x = await store.savePageSeo(d1, "home", input, tok(), "u1");
+    check(`page SEO: ${name} is refused`, !x.ok && x.kind === "invalid" && field in x.errors, x.errors ? Object.entries(x.errors).map(([k, m]) => `${k}: ${m}`).join("; ") : x.kind);
+  }
+  const shared = await store.savePageSeo(d1, "shared", seo, T0, "u1");
+  check("a template without a page of its own has no SEO settings", !shared.ok && shared.kind === "invalid");
+}
+
+// ---- the seed file (db/seed/pages.sql) -----------------------------------------------------------------------------------------------
+{
+  const fresh = new DatabaseSync(":memory:");
+  fresh.exec("PRAGMA foreign_keys = ON");
+  for (const f of migrations) {
+    if (f.startsWith("0008")) fresh.exec("INSERT INTO submissions (id, name, email, message, status, source, created_at, updated_at) VALUES ('legacy-1', 'Old Row', 'old@example.com', 'sent before the rename', 'read', 'contact-page', '2026-10-01T00:00:00.000Z', '2026-10-01T00:00:00.000Z')");
+    fresh.exec(readFileSync(join(ROOT, "migrations", f), "utf8"));
+  }
+  fresh.exec(readFileSync(join(ROOT, "db", "seed", "content.sql"), "utf8"));
+  const seedSql = readFileSync(join(ROOT, "db", "seed", "pages.sql"), "utf8");
+  fresh.exec(seedSql);
+  const n = (sql) => fresh.prepare(sql).get().c;
+  check("the page seed applies on a database that has the content seed: 9 pages, 35 sections, with their references", n("SELECT COUNT(*) c FROM pages") === TEMPLATE_NAMES.length && n("SELECT COUNT(*) c FROM page_sections") === 35 && n("SELECT COUNT(*) c FROM page_section_refs") > 20);
+  let current = true, which = "";
+  for (const t of TEMPLATE_NAMES) for (const s of TEMPLATES[t].sections) {
+    const row = fresh.prepare("SELECT content, position FROM page_sections WHERE id = ?").get(`sec_${t}_${s.key}`);
+    const want = checkSection(t, s.key, PAGE_DEFAULTS[t][s.key]);
+    if (!row || JSON.stringify(JSON.parse(row.content)) !== JSON.stringify(want.content) || row.position !== TEMPLATES[t].sections.indexOf(s)) { current = false; which = `${t}.${s.key}`; }
+  }
+  check("every seeded section is exactly the typed default (the seed file is up to date: run db:seed:pages:generate after changing defaults.ts)", current, which);
+  fresh.exec("UPDATE page_sections SET content = '{\"edited\":true}' WHERE id = 'sec_home_hero'");
+  fresh.exec("DELETE FROM page_sections WHERE id = 'sec_home_logos'");
+  fresh.exec(seedSql);
+  check("running the seed again never overwrites an editor's change, and puts back a section that is missing", fresh.prepare("SELECT content FROM page_sections WHERE id = 'sec_home_hero'").get().content === '{"edited":true}' && n("SELECT COUNT(*) c FROM page_sections WHERE id = 'sec_home_logos'") === 1 && n("SELECT COUNT(*) c FROM page_sections") === 35);
+  fresh.close();
+}
+
+// ---- the admin forms describe the sections completely ------------------------------------------------------------------------------
+{
+  const { blank, blankItem } = await imp("src/lib/cms/fields.ts");
+  const { fieldsFor } = await imp("src/lib/cms/describe.ts");
+  const FIELDS = Object.fromEntries(SECTION_TYPE_NAMES.map((n) => [n, fieldsFor(n)]));
+  const problems = [];
+  /** Every key of the content must be a field of the form, every field must be in the content, and each value must have the shape its field kind edits. */
+  const walk = (fields, value, path) => {
+    const keys = fields.map((f) => f.key);
+    if (value === null || typeof value !== "object" || Array.isArray(value)) { problems.push(`${path}: not an object`); return; }
+    for (const k of Object.keys(value)) if (!keys.includes(k)) problems.push(`${path}.${k}: in the content, not in the form`);
+    for (const f of fields) {
+      const v = value[f.key], at = `${path}.${f.key}`;
+      if (!(f.key in value)) { problems.push(`${at}: in the form, not in the content`); continue; }
+      const shape = {
+        text: () => typeof v === "string", rich: () => typeof v === "string", href: () => typeof v === "string", colour: () => typeof v === "string", timezone: () => typeof v === "string",
+        select: () => f.options.some((o) => o.value === v), bool: () => typeof v === "boolean",
+        media: () => (v === null && f.optional) || (v && typeof v.id === "string" && typeof v.alt === "string" && Object.keys(v).length === 2),
+        cases: () => Array.isArray(v) && v.every((x) => typeof x === "string"),
+        group: () => (v === null && f.optional) || (v && typeof v === "object" && !Array.isArray(v)),
+        list: () => Array.isArray(v),
+      }[f.kind];
+      if (!shape()) problems.push(`${at}: wrong shape for a ${f.kind} field`);
+      if (f.kind === "group" && v) walk(f.fields, v, at);
+      if (f.kind === "list" && Array.isArray(v)) {
+        if (v.length < f.min || v.length > f.max) problems.push(`${at}: ${v.length} items, the form says ${f.min}-${f.max}`);
+        v.forEach((it, i) => { if ("leaf" in f.of) { const sub = { ...f.of.leaf, key: "x" }; walk([sub], { x: it }, `${at}.${i}`); } else walk(f.of.fields, it, `${at}.${i}`); });
+        // a blank item must have the keys of a real one (what "Add" puts in)
+        const b = blankItem(f);
+        if (!("leaf" in f.of) && JSON.stringify(Object.keys(b)) !== JSON.stringify(f.of.fields.map((x) => x.key))) problems.push(`${at}: blank item has other keys`);
+      }
+    }
+  };
+  for (const t of TEMPLATE_NAMES) for (const s of TEMPLATES[t].sections) walk(FIELDS[s.type], PAGE_DEFAULTS[t][s.key], `${t}.${s.key}`);
+  check("every section's form, built from its schema, fits exactly the fields of its current content (none missing, none extra, counts and shapes right)", problems.length === 0, problems.slice(0, 4).join(" | "));
+  check("every section type has a form", SECTION_TYPE_NAMES.every((n) => Array.isArray(FIELDS[n]) && FIELDS[n].length > 0));
+  // a blank value of every kind of field is what the schema's "empty" is, so adding an item never produces a key the schema rejects
+  check("a blank media field is {id, alt}, a blank optional group is null", JSON.stringify(blank({ kind: "media", key: "m", label: "m", media: "image" })) === '{"id":"","alt":""}' && blank({ kind: "group", key: "g", label: "g", fields: [], optional: true }) === null);
+}
+
+// ---- what the admin screens read ---------------------------------------------------------------------------------------------------
+{
+  const pages = await store.listPages(d1);
+  check("the page list has every template, with its address, section count and whether it is seeded", pages.length === TEMPLATE_NAMES.length && pages.find((p) => p.template === "home").route === "/" && pages.find((p) => p.template === "home").sections === 9 && pages.find((p) => p.template === "home").seeded && !pages.find((p) => p.template === "about").seeded, pages.map((p) => `${p.template}:${p.seeded}`).join(" "));
+  db.prepare("UPDATE pages SET seo_title = NULL, seo_description = NULL, og_image_id = NULL, canonical_url = NULL, noindex = 0 WHERE id = 'page_home'").run(); // earlier checks changed it
+  const pages2 = await store.listPages(d1);
+  const byT = (x) => pages2.find((p) => p.template === x);
+  check("the page list gives each page its id, status and SEO status (default, custom, hidden from search); copy that is not a page has none", byT("home").id === "page_home" && byT("home").status === "published" && byT("home").seo === "default" && byT("shared").seo === null && byT("service_detail").seo === null);
+  db.prepare("UPDATE pages SET seo_title = 'Own title' WHERE id = 'page_home'").run();
+  const seoCustom = (await store.listPages(d1)).find((p) => p.template === "home").seo;
+  db.prepare("UPDATE pages SET noindex = 1 WHERE id = 'page_home'").run();
+  const seoNo = (await store.listPages(d1)).find((p) => p.template === "home").seo;
+  db.prepare("UPDATE pages SET seo_title = NULL, noindex = 0 WHERE id = 'page_home'").run();
+  check("SEO status follows the page: its own title makes it custom, noindex wins", seoCustom === "custom" && seoNo === "noindex" && (await store.listPages(d1)).find((p) => p.template === "home").seo === "default");
+  const { templateFromParam } = await imp("src/lib/cms/registry.ts");
+  check("an admin address names a page by slug or by id", templateFromParam("home") === "home" && templateFromParam("page_home") === "home" && templateFromParam("service-detail") === "service_detail" && templateFromParam("page_service_detail") === "service_detail" && templateFromParam("nope") === undefined);
+  const ls = await store.listSections(d1, "home");
+  check("a page's sections are listed in the template's order with their type label and whether they can be hidden", ls.sections.map((x) => x.key).join() === TEMPLATES.home.sections.map((x) => x.key).join() && ls.sections[0].typeLabel === "Home hero" && ls.sections[0].canDisable === false && ls.sections.find((x) => x.key === "logos").canDisable === true && ls.page?.template === "home");
+  const un = await store.listSections(d1, "about");
+  check("a page that is not seeded lists its sections with no row and no page", un.page === null && un.sections.length === 9 && un.sections.every((x) => x.updatedAt === null));
+  db.prepare("UPDATE page_sections SET content = '{\"bad\":1}' WHERE id = 'sec_home_why'").run();
+  check("a section whose saved content no longer passes is marked damaged", (await store.listSections(d1, "home")).sections.find((x) => x.key === "why").damaged === true && (await store.listSections(d1, "home")).sections.find((x) => x.key === "hero").damaged === false);
+  const forEdit = await store.readSectionForEdit(d1, "home", "why");
+  check("a damaged section opens in the editor with its default content and a way to tell the editor", forEdit.damaged && JSON.stringify(forEdit.content) === JSON.stringify(PAGE_DEFAULTS.home.why));
+  db.prepare("UPDATE page_sections SET content = ? WHERE id = 'sec_home_why'").run(JSON.stringify(PAGE_DEFAULTS.home.why));
+  const good = await store.readSectionForEdit(d1, "home", "hero");
+  check("a good section opens with its saved content and its version", !good.damaged && good.type === "home_hero" && typeof good.updatedAt === "string" && JSON.stringify(good.content) === JSON.stringify(PAGE_DEFAULTS.home.hero));
+  check("a section that has no row, or does not exist, cannot be opened", (await store.readSectionForEdit(d1, "about", "hero")) === null && (await store.readSectionForEdit(d1, "home", "sidebar")) === null);
+}
+
+
+// ---- earlier versions of a section -----------------------------------------------------------------------------------------------------
+{
+  const revs = (id) => q("SELECT content, saved_at, replaced_at FROM page_section_revisions WHERE section_id = ? ORDER BY replaced_at DESC, id DESC", id);
+  const base = structuredClone(PAGE_DEFAULTS.works.grid);
+  const stampOf = () => one("SELECT updated_at u FROM page_sections WHERE id = 'sec_works_grid'").u;
+  const before = revs("sec_works_grid").length;
+  const r1 = await save("grid", { emptyText: "Version A" }, stampOf(), "works");
+  check("a save keeps the content it replaces as an earlier version", r1.ok && revs("sec_works_grid").length === before + 1 && JSON.parse(revs("sec_works_grid")[0].content).emptyText === base.emptyText);
+  const n1 = revs("sec_works_grid").length;
+  const same = await save("grid", { emptyText: "Version A" }, stampOf(), "works");
+  check("saving the same content again does not add a version", same.ok && revs("sec_works_grid").length === n1);
+  const stale = await save("grid", { emptyText: "Version B" }, "2020-01-01T00:00:00.000Z", "works");
+  check("a refused save (stale version) adds no version", !stale.ok && revs("sec_works_grid").length === n1);
+  const bad = await save("grid", { emptyText: "" }, stampOf(), "works");
+  check("an invalid save adds no version", !bad.ok && revs("sec_works_grid").length === n1);
+  for (let i = 0; i < 13; i++) await save("grid", { emptyText: `Edit ${i}` }, stampOf(), "works");
+  check("only the last 10 versions are kept", revs("sec_works_grid").length === 10, String(revs("sec_works_grid").length));
+  const list = await store.listRevisions(d1, "works", "grid");
+  check("the versions are listed newest first, with their content, when saved and who saved them", list.length === 10 && list[0].content.emptyText === "Edit 11" && list[1].content.emptyText === "Edit 10" && list.every((x) => x.savedAt && x.replacedAt) && list[0].by === "Ed", list.map((x) => x.content?.emptyText).join(","));
+  db.prepare("UPDATE page_section_revisions SET content = '{\"nope\":1}' WHERE id = (SELECT id FROM page_section_revisions WHERE section_id = 'sec_works_grid' ORDER BY replaced_at DESC, id DESC LIMIT 1)").run();
+  check("a version that no longer passes the schema is listed without content (it cannot be loaded)", (await store.listRevisions(d1, "works", "grid"))[0].content === null);
+  check("a section that does not exist has no versions", (await store.listRevisions(d1, "works", "nope")).length === 0 && (await store.listRevisions(d1, "about", "hero")).length === 0);
+  const rid = revs("sec_works_grid").length;
+  db.exec("DELETE FROM page_sections WHERE id = 'sec_works_grid'");
+  check("deleting a section deletes its versions", rid > 0 && q("SELECT COUNT(*) c FROM page_section_revisions WHERE section_id = 'sec_works_grid'")[0].c === 0);
+  check("every section has a name for the admin", TEMPLATE_NAMES.every((t) => TEMPLATES[t].sections.every((s) => typeof s.name === "string" && s.name.length > 0)));
+}
+
+// ---- the generated forms use the right controls and limits -------------------------------------------------------------------------------------
+{
+  const { fieldsFor } = await imp("src/lib/cms/describe.ts");
+  const hero = fieldsFor("home_hero");
+  const hf = (k) => hero.find((f) => f.key === k);
+  check("generated: text fields carry their limit and optional flag from the schema; rich text is a rich field", hf("eyebrow").kind === "text" && hf("eyebrow").max === 40 && !hf("eyebrow").optional && hf("title").kind === "rich" && hf("sceneLabel").optional === true);
+  check("generated: a button is a group of text and link; a nullable group is optional", hf("primaryCta").kind === "group" && hf("primaryCta").fields.map((x) => x.kind).join() === "text,href" && hf("secondaryCta").optional === true && !hf("primaryCta").optional);
+  const reel = fieldsFor("showreel");
+  check("generated: the showreel video is a video picker, the poster an image picker", reel.find((f) => f.key === "video").kind === "media" && reel.find((f) => f.key === "video").media === "video" && reel.find((f) => f.key === "poster").media === "image");
+  const why = fieldsFor("why_stats");
+  const wi = why.find((f) => f.key === "items"), ws = why.find((f) => f.key === "stats");
+  check("generated: a list gets its limits, its noun and whether its count is fixed, from the schema", wi.min === 3 && wi.max === 8 && !wi.fixed && wi.noun === "reason" && ws.fixed === true && ws.min === 4);
+  const offices = fieldsFor("office_clocks").find((f) => f.key === "items").of.fields;
+  check("generated: a choice is a select with the words for each value; a time zone has its own control", offices.find((f) => f.key === "flag").kind === "select" && offices.find((f) => f.key === "flag").options.map((o) => `${o.value}=${o.label}`).join() === "PT=Portugal,CA=Canada,SG=Singapore,AU=Australia" && offices.find((f) => f.key === "timeZone").kind === "timezone");
+  const cs = fieldsFor("case_showcase").find((f) => f.key === "caseIds");
+  check("generated: case studies are chosen with the case picker, with the schema's minimum and maximum", cs.kind === "cases" && cs.min === 2 && cs.max === 6);
+  const logos = fieldsFor("logos_collection").find((f) => f.key === "items").of.fields;
+  check("generated: a yes/no is a switch; an optional picture in a list item is an optional media field", logos.find((f) => f.key === "dot").kind === "bool" && fieldsFor("reviews_collection").find((f) => f.key === "items").of.fields.find((f) => f.key === "avatar").optional === true);
+  check("generated: a list of plain strings has a text field as its item; a list of pictures has media items", fieldsFor("process_steps").find((f) => f.key === "facts").of.leaf.kind === "text" && fieldsFor("cta_band").find((f) => f.key === "avatars").of.leaf.kind === "media" && fieldsFor("cta_band").find((f) => f.key === "avatars").fixed === true);
+  // every limit shown in a form is the limit the schema enforces: a text of exactly `max` characters passes, one more fails
+  let limitsOk = true, which = "";
+  const probe = (type, content) => SECTION_TYPES[type].schema.safeParse(content).success;
+  for (const [t, key] of [["home_hero", "eyebrow"], ["about_hero", "lead"], ["contact_form", "note"], ["footer_extras", "copyright"]]) {
+    const f = fieldsFor(t).find((x) => x.key === key);
+    const tpl = TEMPLATE_NAMES.find((n) => TEMPLATES[n].sections.some((s) => s.type === t));
+    const slot = TEMPLATES[tpl].sections.find((s) => s.type === t);
+    const ok = structuredClone(PAGE_DEFAULTS[tpl][slot.key]); ok[key] = "a".repeat(f.max);
+    const over = structuredClone(ok); over[key] = "a".repeat(f.max + 1);
+    if (!(probe(t, ok) && !probe(t, over))) { limitsOk = false; which = `${t}.${key}`; }
+  }
+  check("generated: the limit in the form is the limit the schema enforces (max characters pass, one more is refused)", limitsOk, which);
+}
+
+
+console.log(`\n${pass}/${pass + fail} checks passed`);
+process.exit(fail ? 1 : 0);
