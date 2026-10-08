@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { SLUG_RE, RESERVED_SLUGS, STATUSES, richOk, toErrors } from "./service";
+import { SLUG_RE, RESERVED_SLUGS, STATUSES, richOk, toErrors } from "./service.ts";
 
 export { toErrors, STATUSES };
 

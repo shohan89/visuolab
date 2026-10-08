@@ -25,7 +25,7 @@ export default async function EditCaseStudyPage({ params }: { params: Promise<{ 
         <div>
           <h1>{input.clientName} <span className={`badge ${input.status}`}>{input.status}</span>{input.featured ? <span className="badge published">featured</span> : null}</h1>
           <p className="admin-sub">
-            <Link href="/admin/case-studies">← All case studies</Link> · last saved {when(rec.updatedAt)}
+            <Link href="/admin/case-studies">← All case studies</Link> · <Link href={`/admin/case-studies/${rec.id}`}>Edit by section</Link> · last saved {when(rec.updatedAt)}
             {rec.publishedAt && input.status === "published" ? ` · published ${when(rec.publishedAt)}` : ""}
           </p>
         </div>

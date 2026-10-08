@@ -23,7 +23,7 @@ export default async function EditServicePage({ params }: { params: Promise<{ id
         <div>
           <h1>{input.title} <span className={`badge ${input.status}`}>{input.status}</span></h1>
           <p className="admin-sub">
-            <Link href="/admin/services">← All services</Link> · last saved {when(rec.updatedAt)}
+            <Link href="/admin/services">← All services</Link> · <Link href={`/admin/services/${rec.id}`}>Edit by section</Link> · last saved {when(rec.updatedAt)}
             {rec.publishedAt && input.status === "published" ? ` · published ${when(rec.publishedAt)}` : ""}
           </p>
         </div>

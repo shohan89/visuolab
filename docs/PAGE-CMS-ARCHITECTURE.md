@@ -367,6 +367,28 @@ Limits are not copied: the maximum length, the number of items and optionality s
 
 The page search settings are read by the public pages (`fixedPageSeo()` in `src/lib/server/seo.ts`): the page's own value, then Settings → SEO → Page metadata, then the site default.
 
+## 11c. Sections of services, case studies and articles
+
+The static pages have their sections stored as rows (`page_sections`). Services, case studies and articles are different: each is one database record, drawn by one component (`ServicePage`, `CaseStudyPage`, `BlogArticle`). The record already keeps every part of its page in its own column or JSON document, so the sections are **not stored a second time**. A section is a strict schema plus two small functions that read its content out of the record and put edited content back (`src/lib/cms/entity/`). There is no second source of truth and no data migration; the public pages read exactly what they read before, so the design cannot change.
+
+| | Admin address | Sections, in the order of the public page |
+|---|---|---|
+| Service | `/admin/services/<id>` and `/admin/services/<id>/<section>` | Hero, What we fix (can be hidden), Overview, Outcomes, Call to action band (can be hidden), What is included, Process, Case studies, Search engines (SEO). The logos, the rating line and the reviews are the same on every service page and are edited once, under Pages → Shared. |
+| Case study | `/admin/case-studies/<id>` and `/<section>` | Hero, Project details, Introduction, First gallery, Approach, Second gallery, Challenge, Wide image, Results, Related work; then the parts the record also feeds: Card on the Works page, Card on service pages and Home, Shown on service pages, Search engines (SEO). |
+| Article | `/admin/blog/<id>` and `/<section>` | Headline and byline, Cover picture, Opening paragraph, Article body (a list of typed blocks: headings, paragraphs, lists, quotes, pictures, dividers), Closing line, More from the studio, Listing card and tags, Search engines (SEO). |
+
+The sections were taken from the components above, not invented: every block of the page is one section, and the parts of the record that are not drawn on the page itself (the card on `/works`, the card on service pages and Home, the service links, the search settings) are sections too, so everything an editor can change is reachable from the overview. The slug, the status (publish, unpublish, archive), the featured flag and deleting stay where they were, under **Basics and publishing** (`/admin/<x>/<id>/edit`), which is also still the whole record in one form.
+
+**Screens.** The overview has one card per section (name, type, what it is for, the anchor on the page, when the section was last changed, **Edit**); the two service sections the design can hide have an enabled switch. The section editor is generated from the section's schema by the same code as the static pages (`describe.ts`), with five more kinds of field: a **choice from the database** (`pick`: other case studies, services, categories, articles; one value or an ordered list), a **kept value** that is not shown (`hidden`: the icon of a service's "included" card travels with its card; a new card gets a plain circle), the **block editor** (`blocks`, the article body), a **number** (reading time) and a **date and time**. A picture with no description of its own (an avatar, the share picture) has no description field.
+
+**How a section is saved** (`src/lib/server/entity-sections.ts`, `src/actions/cms-entities.ts`): the request must come from this site and the session must belong to an admin, as everywhere. Then (1) the content is checked against the section's strict schema (precise field errors); (2) it is put into the record as loaded now and the **whole record is checked by the same schema the full form uses**, plus every reference (pictures, case studies, services, category, articles), plus the rule of the article form that a live article's date cannot move into the future; errors of that check are mapped back to the section's fields, and an error in another part of the page is reported as a form message; (3) the version token is the record's `updated_at`: if someone saved the record since the editor opened, nothing is written (a conflict); (4) the record is written through the same function the full form uses (`updateService`, `updateCaseStudy`, `updatePost`), so slug redirects, the featured flag, image rows and tag links behave as before; (5) the replaced content is kept as a previous version, an audit entry names the section and the fields that changed (never the values) and bumps the content version, and the public route and its listing are revalidated. A section save therefore cannot store what the full form would refuse, and a record saved by either door is valid for the other.
+
+**Previous versions.** `entity_section_revisions` (migration `0019`) keeps the content a save replaced, per record and section, the last 10. They appear on the section's screen ("Load into the editor", then Save). A trigger on each of the three record tables removes a deleted record's versions.
+
+**Hiding a section.** Only the two service sections that already had a flag (`show_problems`, `show_band`) can be hidden; the switch checks the whole record, so a section whose required fields are empty cannot be switched on. The other sections are the skeleton of their page and are always on.
+
+**Verification.** `npm run db:verify:entities` (57 checks) runs the real seeded records through every section: each section's content passes its schema, putting it back changes nothing, the record still passes the full schema, and the form built from the schema fits the content exactly. `scripts/qa/entities-admin-qa.mjs` (78 checks) does the same in a browser against a service, a case study and an article.
+
 ## 12. Validation strategy
 
 Four layers, each catching what the one before cannot:
@@ -399,7 +421,7 @@ Open items, none blocking:
 3. Contact phone, address and hours exist in Settings but have no slot in the design; adding one is a design change.
 4. Content debt found in the audit, to correct while seeding: case-study card alt texts mention "placeholder from Dribbble"; the Orbit gallery has a test third image; Kite shows one "More work" card.
 5. Whether Home's own copy of the reviews should be removed in favour of the shared list when Home is switched over (the plan says yes).
-6. Revision history for sections (restore a previous version): not part of this model; a `page_section_revisions` table can be added without changing it.
+6. Revision history for sections: done for the static pages (`page_section_revisions`) and for services, case studies and articles (`entity_section_revisions`).
 
 ## 14. Rollout
 

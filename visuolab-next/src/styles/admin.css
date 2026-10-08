@@ -387,3 +387,5 @@ dialog.picker::backdrop{background:rgba(20,21,26,.55)}
 .share-card span{font-size:13.5px;color:var(--a-muted);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .share-card small{color:var(--a-muted);font-size:12px}
 @media(max-width:600px){.share-card{grid-template-columns:1fr}}
+/* ---- sections of services, case studies and articles ---- */
+.section-card .sc-about{margin:4px 0 0;font-size:13px;color:var(--a-muted);max-width:60ch}

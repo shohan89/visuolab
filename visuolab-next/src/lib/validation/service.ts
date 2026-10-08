@@ -6,7 +6,7 @@ import { z } from "zod";
 export const RESERVED_SLUGS = new Set(["new", "edit", "admin", "api", "index", "services", "service", "undefined", "null"]);
 export const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
-export { slugify } from "@/lib/slug";
+export { slugify } from "../slug.ts";
 
 /* ---- text ----------------------------------------------------------------------------------------------------- */
 
@@ -38,7 +38,7 @@ const item = <T extends z.ZodRawShape>(shape: T) => z.object(shape);
 const list = <T extends z.ZodTypeAny>(schema: T, label: string, min: number, max: number) =>
   z.array(schema).min(min, `${label}: add at least ${min}`).max(max, `${label}: at most ${max}`);
 
-const iconSchema = z.object({
+export const iconSchema = z.object({
   viewBox: z.string().regex(/^[\d.\s-]{3,40}$/),
   nodes: z.array(z.object({ t: z.enum(["path", "circle", "rect", "line", "polyline", "polygon", "ellipse"]), a: z.record(z.string(), z.string().max(2000)) })).max(20),
 });

@@ -42,6 +42,7 @@ const NOTICES: Record<string, { kind: Kind; text: string }> = {
   confirm_needed: { kind: "error", text: "Not done: the slug did not match. Nothing was changed." },
   section_shown: { kind: "success", text: "Section shown on the website." },
   section_hidden: { kind: "success", text: "Section hidden. Its content is kept." },
+  section_incomplete: { kind: "error", text: "Not shown: finish the fields of that section first, then try again." },
   section_locked: { kind: "error", text: "This section cannot be hidden: other pages link to it." },
   failed: { kind: "error", text: "That did not work. Please try again." },
 };

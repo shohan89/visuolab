@@ -77,14 +77,14 @@ export default async function ServicesPage({ searchParams }: { searchParams: Pro
                     </td>
                   )}
                   <td>
-                    <Link href={`/admin/services/${s.id}/edit`}><b>{s.title}</b></Link>
+                    <Link href={`/admin/services/${s.id}`}><b>{s.title}</b></Link>
                     <br /><small className="mono">/services/{s.slug}</small>
                   </td>
                   <td><span className={`badge ${s.status}`}>{s.status}</span></td>
                   <td className="col-num">{s.caseCount}</td>
                   <td>{when(s.updatedAt)}</td>
                   <td><div className="row-actions">
-                    <Link href={`/admin/services/${s.id}/edit`}>Edit</Link>
+                    <Link href={`/admin/services/${s.id}`}>Edit</Link>
                     <a href={`/services/${s.slug}`} target="_blank" rel="noopener">{s.status === "published" ? "View" : "Preview"}</a>
                     {s.status === "published" ? (
                       <Link href={`/admin/services/${s.id}/confirm?do=unpublish`}>Unpublish</Link>

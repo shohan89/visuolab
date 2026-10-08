@@ -12,7 +12,7 @@ const prettify = (s: string) => { const w = s.replace(/[-_]+/g, " "); return w[0
 export default function Breadcrumbs() {
   const parts = (usePathname() ?? "/admin").split("/").filter(Boolean);
   const crumbs = parts
-    .map((p, i) => ({ href: "/" + parts.slice(0, i + 1).join("/"), label: LABELS[p] ?? (parts[1] === "pages" && i >= 2 ? prettify(decodeURIComponent(p)) : decodeURIComponent(p)), id: /^(svc|case|post|media)_/.test(p) }))
+    .map((p, i) => ({ href: "/" + parts.slice(0, i + 1).join("/"), label: LABELS[p] ?? ((parts[1] === "pages" && i >= 2) || (i >= 3 && /^(svc|case|post)_/.test(parts[2] ?? "")) ? prettify(decodeURIComponent(p)) : decodeURIComponent(p)), id: /^(svc|case|post|media)_/.test(p) }))
     .filter((c) => !c.id); // a record id is not a page of its own
   return (
     <nav className="crumbs" aria-label="Breadcrumb">

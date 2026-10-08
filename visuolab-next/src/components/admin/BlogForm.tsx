@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useRef, useState } from "react";
 import { saveBlogPost, type BlogFormState } from "@/actions/blog";
 import { slugify } from "@/lib/slug";
@@ -116,7 +117,7 @@ export default function BlogForm({ id, initial, visibility, media, categories, o
 
       <div className="savebar">
         <button type="submit" className="primary" disabled={pending}>{pending ? "Saving…" : editing ? "Save changes" : "Create article"}</button>
-        <a href="/admin/blog">Cancel</a>
+        <Link href="/admin/blog">Cancel</Link>
         <span className="hint">{editing ? "Changes go live as soon as you save (when the article is live)." : "Nothing is public until the article is published."}</span>
       </div>
     </form>

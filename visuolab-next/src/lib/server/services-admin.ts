@@ -2,6 +2,7 @@ import "server-only";
 import { getServiceSeedNav } from "./services-nav";
 import { publicMediaUrl } from "@/lib/media/url";
 import { getDb } from "./db";
+import { rowToServiceInput } from "@/lib/content/service-input";
 import type { ServiceInput } from "@/lib/validation/service";
 
 /*
@@ -70,23 +71,9 @@ export async function getServiceRecord(id: string): Promise<ServiceRecord | null
   const v = await db.prepare("SELECT * FROM services WHERE id = ?1").bind(id).first<Row>();
   if (!v) return null;
   const links = await db.prepare("SELECT case_study_id FROM service_case_studies WHERE service_id = ?1 ORDER BY position").bind(id).all<{ case_study_id: string }>();
-  const shots = parse<{ alt: string }[]>(v.hero_shots_json);
-  const problems = parse<{ label: string; title: string; items: ServiceInput["problems"]["items"] }>(v.problems_json);
-  const band = parse<{ text: string; cta: { label: string; href: string } }>(v.band_json);
-  const cases = parse<{ label: string; title: string }>(v.cases_json);
   return {
     id: s(v.id), position: Number(v.position), createdAt: s(v.created_at), updatedAt: s(v.updated_at), publishedAt: (v.published_at as string | null) ?? null,
-    input: {
-      title: s(v.title), slug: s(v.slug), status: s(v.status) as ServiceInput["status"],
-      metaTitle: s(v.meta_title), metaDescription: s(v.meta_description),
-      heroTitle: s(v.hero_title), heroLead: s(v.hero_lead), heroCtaLabel: s(v.hero_cta_label), heroCtaHref: s(v.hero_cta_href),
-      heroImageA: s(v.hero_image_a_id), heroImageAAlt: shots[0]?.alt ?? "", heroImageB: s(v.hero_image_b_id), heroImageBAlt: shots[1]?.alt ?? "",
-      showProblems: Boolean(v.show_problems), problems,
-      overview: parse(v.overview_json), outcomes: parse(v.outcomes_json),
-      showBand: Boolean(v.show_band), band: { text: band.text, ctaLabel: band.cta.label, ctaHref: band.cta.href },
-      included: parse(v.included_json), process: parse(v.process_json),
-      casesLabel: cases.label, casesTitle: cases.title, caseIds: (links.results ?? []).map((l) => l.case_study_id),
-    },
+    input: rowToServiceInput(v, (links.results ?? []).map((l) => l.case_study_id)),
   };
 }
 

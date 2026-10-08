@@ -61,6 +61,12 @@ export const mediaId = (label = "Image") => z.string().trim().min(1, `${label} i
 export const mediaRef = (label = "Image", kind: "image" | "video" = "image") =>
   z.strictObject({ id: mediaId(label), alt: optText(`${label} description`, 200) }).meta({ kind: "media", label, media: kind });
 export type MediaReference = z.infer<ReturnType<typeof mediaRef>>;
+/** A picture from the media library with no description of its own (an avatar: always decoration). Optional pictures are `.nullable()`. */
+export const mediaOnly = (label = "Image") => z.strictObject({ id: mediaId(label) }).meta({ kind: "media", label, media: "image", noAlt: true });
+/** A whole number in a range (a reading time). Optional: `.nullable()`; empty means "work it out". */
+export const whole = (label: string, min: number, max: number) => z.number().int(`${label} must be a whole number`).min(min, `${label} must be at least ${min}`).max(max, `${label} must be at most ${max}`).meta({ kind: "number", label, min, max });
+/** A date and time, `2026-10-05T09:30` (UTC), or empty. */
+export const dateTime = (label: string) => z.string().trim().refine((v) => v === "" || (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(v) && !Number.isNaN(Date.parse(`${v}:00Z`))), `${label} must look like 2026-10-05T09:30`).meta({ kind: "datetime", label });
 /** The id of a case study. */
 export const caseId = z.string().trim().min(1).max(80).regex(/^[A-Za-z0-9_-]+$/, "Not a case study id");
 
@@ -80,6 +86,23 @@ export const fixedList = <T extends z.ZodType>(item: T, label: string, n: number
 /** A list of case study ids, in order: no duplicates. */
 export const caseIds = (label: string, min: number, max: number) =>
   z.array(caseId).min(min, `${label}: add at least ${min}`).max(max, `${label}: at most ${max}`).refine((v) => new Set(v).size === v.length, `${label}: a case study can be chosen once`).meta({ kind: "cases", label });
+
+/**
+ * Choices that come from the database (the other case studies, the blog categories, the services): the schema only says the values are strings,
+ * the editor gets the list of options named by `source` and the server checks that every value exists.
+ */
+export const pick = (label: string, source: string, min: number, max: number, noun = "item") =>
+  z.array(z.string().trim().min(1, `${label}: choose one`).max(80)).min(min, `${label}: add at least ${min}`).max(max, `${label}: at most ${max}`)
+    .refine((v) => new Set(v).size === v.length, `${label}: each one can be chosen once`).meta({ kind: "pick", label, source, noun });
+/** One choice from the database. */
+export const pickOne = (label: string, source: string) => z.string().trim().min(1, `${label}: choose one`).max(80).meta({ kind: "pick", label, source, single: true });
+
+/** A value the editor does not show but keeps with its item (the icon of a service's "included" item). `fallback` is what a new item gets. */
+export const hidden = <T extends z.ZodType>(schema: T, fallback: unknown) => schema.meta({ kind: "hidden", fallback });
+
+/** The article body: a list of typed blocks (headings, paragraphs, lists, quotes, pictures, dividers), edited by the block editor. */
+export const blocks = <T extends z.ZodType>(item: T, label: string, min: number, max: number) =>
+  z.array(item).min(min, `${label}: add at least ${min}`).max(max, `${label}: at most ${max}`).meta({ kind: "blocks", label });
 
 /** An IANA time zone name, checked by the runtime that will use it. */
 export const timeZone = z.string().trim().min(1).max(60).refine((v) => {

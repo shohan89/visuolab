@@ -27,7 +27,7 @@ export default async function EditArticlePage({ params }: { params: Promise<{ id
         <div>
           <h1>{input.title} <span className={`badge ${visibility === "live" ? "published" : visibility}`}>{visibility === "live" ? "published" : visibility}</span>{input.featured ? <span className="badge published">featured</span> : null}</h1>
           <p className="admin-sub">
-            <Link href="/admin/blog">← All articles</Link> · last saved {when(rec.updatedAt)}
+            <Link href="/admin/blog">← All articles</Link> · <Link href={`/admin/blog/${rec.id}`}>Edit by section</Link> · last saved {when(rec.updatedAt)}
             {rec.publishedAt && visibility === "live" ? ` · published ${when(rec.publishedAt)}` : ""}
             {visibility === "scheduled" && rec.publishedAt ? ` · goes live ${when(rec.publishedAt)}` : ""}
           </p>

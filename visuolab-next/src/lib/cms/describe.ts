@@ -14,7 +14,7 @@ import type { SectionType } from "./types.ts";
 
 type Check = { _zod: { def: { check: string; maximum?: number; minimum?: number } } };
 type Def = { type: string; shape?: Record<string, z.ZodType>; element?: z.ZodType; innerType?: z.ZodType; entries?: Record<string, unknown>; checks?: Check[] };
-type Meta = { kind?: string; label?: string; hint?: string; optional?: boolean; media?: "image" | "video"; options?: Record<string, string>; text?: string; noun?: string; fixed?: boolean; lines?: boolean };
+type Meta = { min?: number; max?: number; noAlt?: boolean; kind?: string; source?: string; fallback?: unknown; label?: string; hint?: string; optional?: boolean; media?: "image" | "video"; options?: Record<string, string>; text?: string; noun?: string; fixed?: boolean; lines?: boolean };
 
 const def = (s: z.ZodType): Def => (s as unknown as { _zod: { def: Def } })._zod.def;
 const meta = (s: z.ZodType): Meta => (z.globalRegistry.get(s) ?? {}) as Meta;
@@ -37,6 +37,14 @@ function node(schema: z.ZodType, key: string): FieldDef {
   const base = { key, label: m.label ?? humanize(key), ...(m.hint ? { hint: m.hint } : {}) };
   const t = def(s).type;
 
+  if (m.kind === "hidden") return { ...base, kind: "hidden", fallback: (m as Meta & { fallback?: unknown }).fallback };
+  if (m.kind === "pick" && t === "string") return { ...base, kind: "pick", source: String((m as Meta & { source?: string }).source), noun: "choice", min: 1, max: 1, single: true };
+  if (m.kind === "pick" && t === "array") return { ...base, kind: "pick", source: String((m as Meta & { source?: string }).source), noun: m.noun ?? "item", min: limit(s, "min_length") ?? 0, max: limit(s, "max_length") ?? 99 };
+  if (m.kind === "blocks" && t === "array") return { ...base, kind: "blocks", min: limit(s, "min_length") ?? 0, max: limit(s, "max_length") ?? 99 };
+
+  if (m.kind === "datetime") return { ...base, kind: "datetime" };
+  if (m.kind === "number") return { ...base, kind: "number", min: m.min ?? 0, max: m.max ?? 9999, ...(nullable ? { optional: true } : {}) };
+
   if (t === "string") {
     const kind = m.kind ?? "text";
     const max = limit(s, "max_length") ?? 200;
@@ -49,7 +57,7 @@ function node(schema: z.ZodType, key: string): FieldDef {
   if (t === "enum") return { ...base, kind: "select", options: Object.keys(def(s).entries ?? {}).map((v) => ({ value: v, label: m.options?.[v] ?? v })) };
   if (t === "boolean") return { ...base, kind: "bool", text: m.text ?? base.label };
   if (t === "object") {
-    if (m.kind === "media") return { ...base, kind: "media", media: m.media ?? "image", ...(nullable ? { optional: true } : {}) };
+    if (m.kind === "media") return { ...base, kind: "media", media: m.media ?? "image", ...(nullable ? { optional: true } : {}), ...(m.noAlt ? { noAlt: true } : {}) };
     return { ...base, kind: "group", fields: Object.entries(def(s).shape ?? {}).map(([k, v]) => node(v, k)), ...(nullable ? { optional: true } : {}) };
   }
   if (t === "array") {
@@ -65,6 +73,11 @@ function node(schema: z.ZodType, key: string): FieldDef {
 }
 
 const memo = new Map<SectionType, readonly FieldDef[]>();
+
+/** The editor form of any strict object schema (a section of a page, or of a service, case study or article): its fields in schema order. */
+export function fieldsOfSchema(schema: z.ZodType): readonly FieldDef[] {
+  return Object.entries(def(schema).shape ?? {}).map(([k, v]) => node(v, k));
+}
 
 /** The editor form of a section type: its fields in schema order. */
 export function fieldsFor(type: SectionType): readonly FieldDef[] {

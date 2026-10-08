@@ -86,7 +86,7 @@ export default async function BlogAdminPage({ searchParams }: { searchParams: Pr
                     <div className="cell-media">
                       <img className="thumb" src={p.imageUrl} alt="" width={64} height={48} loading="lazy" />
                       <div>
-                        <Link href={`/admin/blog/${p.id}/edit`}><b>{p.title}</b></Link>
+                        <Link href={`/admin/blog/${p.id}`}><b>{p.title}</b></Link>
                         <br /><small className="mono">/blog/{p.slug}</small>
                         <br /><small>{p.author}{p.tags.length ? ` · ${p.tags.join(", ")}` : ""}</small>
                       </div>
@@ -105,7 +105,7 @@ export default async function BlogAdminPage({ searchParams }: { searchParams: Pr
                   </td>
                   <td>
                     <div className="row-actions">
-                      <Link href={`/admin/blog/${p.id}/edit`}>Edit</Link>
+                      <Link href={`/admin/blog/${p.id}`}>Edit</Link>
                       <a href={`/blog/${p.slug}`} target="_blank" rel="noopener">{p.visibility === "live" ? "View" : "Preview"}</a>
                       {p.visibility === "live" ? (
                         <Link href={`/admin/blog/${p.id}/confirm?do=unpublish`}>Unpublish</Link>

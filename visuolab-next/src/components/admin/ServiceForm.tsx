@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useRef, useState } from "react";
 import { saveService, type ServiceFormState } from "@/actions/services";
 import { slugify } from "@/lib/slug";
@@ -127,7 +128,7 @@ export default function ServiceForm({ id, initial, media, cases, origin }: Props
 
       <div className="savebar">
         <button type="submit" className="primary" disabled={pending}>{pending ? "Saving…" : editing ? "Save changes" : "Create service"}</button>
-        <a href="/admin/services">Cancel</a>
+        <Link href="/admin/services">Cancel</Link>
         <span className="hint">{editing ? "Changes go live on the website as soon as you save (when the service is published)." : "Nothing is public until the status is Published."}</span>
       </div>
     </form>

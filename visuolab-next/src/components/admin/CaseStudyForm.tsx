@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useRef, useState } from "react";
 import { saveCaseStudy, type CaseFormState } from "@/actions/case-studies";
 import { slugify } from "@/lib/slug";
@@ -194,7 +195,7 @@ export default function CaseStudyForm({ id, initial, media, others, services, or
 
       <div className="savebar">
         <button type="submit" className="primary" disabled={pending}>{pending ? "Saving…" : editing ? "Save changes" : "Create case study"}</button>
-        <a href="/admin/case-studies">Cancel</a>
+        <Link href="/admin/case-studies">Cancel</Link>
         <span className="hint">{editing ? "Changes go live on the website as soon as you save (when the case study is published)." : "Nothing is public until the status is Published."}</span>
       </div>
     </form>

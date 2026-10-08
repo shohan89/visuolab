@@ -20,14 +20,20 @@ const NEW: Record<BlockType, () => StoredBlock> = {
 const LABEL: Record<BlockType, string> = { paragraph: "Paragraph", heading: "Heading", subheading: "Subheading", list: "List", quote: "Quote", image: "Image", divider: "Divider" };
 const ADD_ORDER: BlockType[] = ["paragraph", "heading", "subheading", "list", "quote", "image", "divider"];
 
-type Props = { name: string; initial: StoredBlock[]; media: MediaOption[]; errors: Record<string, string> };
+type Props = { name: string; initial: StoredBlock[]; media: MediaOption[]; errors: Record<string, string>; /** controlled use (the section editor): the blocks to show, and what to call when they change */ value?: StoredBlock[]; onChange?: (blocks: StoredBlock[]) => void };
 
 /**
  * The article body as a list of typed blocks. Text is written with the small inline set (bold, italic, code, link); the editor stores
  * data, never HTML. "Preview" shows how the marks will render (with the admin's own plain styling, not the public design).
  */
-export default function ArticleEditor({ name, initial, media, errors }: Props) {
-  const [blocks, setBlocks] = useState<StoredBlock[]>(initial);
+export default function ArticleEditor({ name, initial, media, errors, value, onChange }: Props) {
+  const [inner, setInner] = useState<StoredBlock[]>(initial);
+  const blocks = value ?? inner;
+  const setBlocks = (u: StoredBlock[] | ((b: StoredBlock[]) => StoredBlock[])) => {
+    const n = typeof u === "function" ? u(blocks) : u;
+    setInner(n);
+    onChange?.(n);
+  };
   const [preview, setPreview] = useState(false);
   const patch = (i: number, p: Partial<StoredBlock>) => setBlocks((b) => b.map((x, n) => (n === i ? ({ ...x, ...p } as StoredBlock) : x)));
   const move = (i: number, d: -1 | 1) =>

@@ -1,16 +1,20 @@
 "use client";
 
 import { useId, useRef, useState, useTransition } from "react";
-import { saveSection, type CmsFormState } from "@/actions/cms-pages";
+import type { CmsFormState } from "@/actions/cms-pages";
 import { blank, blankItem, type FieldDef } from "@/lib/cms/fields";
 import type { CaseOption, MediaOption } from "@/lib/server/services-admin";
+import type { StoredBlock } from "@/lib/validation/blog";
+import ArticleEditor from "./ArticleEditor";
 import Rich, { RichLines } from "@/components/site/ui/Rich";
 import { MediaField } from "./MediaPicker";
 
 /** An earlier saved version of the section (content is null if it no longer passes the section's checks). */
 export type RevisionView = { id: string; savedAt: string; replacedAt: string; by: string | null; content: unknown };
 
-type Ctx = { media: MediaOption[]; cases: CaseOption[]; errors: Record<string, string> };
+/** One choice of a list that comes from the database (another case study, a category, ...). */
+export type PickOption = { value: string; label: string; status?: string };
+type Ctx = { media: MediaOption[]; cases: CaseOption[]; options: Record<string, PickOption[]>; errors: Record<string, string> };
 type Obj = Record<string, unknown>;
 
 const isObj = (v: unknown): v is Obj => !!v && typeof v === "object" && !Array.isArray(v);
@@ -61,7 +65,7 @@ function RichInput({ id, value, onChange, rows, lines, invalid, label }: { id: s
 /** One field of a section, by kind. `value` is this field's part of the content; `set` replaces it. */
 function Field({ def, value, path, set, ctx, bare = false }: { def: FieldDef; value: unknown; path: string; set: (v: unknown) => void; ctx: Ctx; /** no label (the caller shows it) */ bare?: boolean }) {
   const id = `sf-${useId()}`;
-  const err = ctx.errors[path] ?? (def.kind === "media" ? ctx.errors[`${path}.id`] : undefined);
+  const err = ctx.errors[path] ?? (def.kind === "media" ? ctx.errors[`${path}.id`] ?? ctx.errors[`${path}.alt`] : undefined);
   const cls = err ? "field has-err" : "field";
   const label = bare ? null : <label htmlFor={id}>{def.label}{("optional" in def && def.optional) || (def.kind === "text" && def.optional) ? <span className="opt-tag"> optional</span> : null}</label>;
   const hint = def.hint ? <p className="hint">{def.hint}</p> : null;
@@ -120,12 +124,12 @@ function Field({ def, value, path, set, ctx, bare = false }: { def: FieldDef; va
       );
     case "media": {
       const ref = isObj(value) ? { id: String(value.id ?? ""), alt: String(value.alt ?? "") } : null;
-      const change = (nid: string) => set(nid ? { id: nid, alt: ref?.alt ?? "" } : def.optional ? null : { id: "", alt: "" });
+      const change = (nid: string) => set(nid ? (def.noAlt ? { id: nid } : { id: nid, alt: ref?.alt ?? "" }) : def.optional ? null : def.noAlt ? { id: "" } : { id: "", alt: "" });
       return (
         <div className={err ? "field has-err media-pick" : "field media-pick"}>
           {bare ? null : <span className="label-like">{def.label}{def.optional ? <span className="opt-tag"> optional</span> : null}</span>}
-          <MediaField id={id} value={ref?.id ?? ""} known={ctx.media} optional={def.optional} label={def.label} kind={def.media} details onChange={(nid) => change(nid)} onDescribe={(alt) => set({ id: ref?.id ?? "", alt })} />
-          {ref && ref.id && (
+          <MediaField id={id} value={ref?.id ?? ""} known={ctx.media} optional={def.optional} label={def.label} kind={def.media} details onChange={(nid) => change(nid)} onDescribe={def.noAlt ? undefined : (alt) => set({ id: ref?.id ?? "", alt })} />
+          {ref && ref.id && !def.noAlt && (
             <>
               <label htmlFor={`${id}-alt`} className="sub">Description for screen readers (leave empty if it is only decoration)</label>
               <input id={`${id}-alt`} type="text" value={ref.alt} maxLength={240} onChange={(e) => set({ id: ref.id, alt: e.target.value })} />
@@ -148,6 +152,78 @@ function Field({ def, value, path, set, ctx, bare = false }: { def: FieldDef; va
           {on && def.fields.map((f) => <Field key={f.key} def={f} value={(value as Obj)[f.key]} path={`${path}.${f.key}`} set={(v) => set({ ...(value as Obj), [f.key]: v })} ctx={ctx} />)}
           {error}
         </fieldset>
+      );
+    }
+    case "hidden":
+      return null;
+    case "number": {
+      const v = typeof value === "number" ? String(value) : "";
+      return (
+        <div className={cls}>
+          {label}
+          <input id={id} type="number" inputMode="numeric" min={def.min} max={def.max} step={1} value={v} onChange={(e) => set(e.target.value === "" ? (def.optional ? null : def.min) : Number(e.target.value))} aria-invalid={err ? true : undefined} />
+          {hint}
+          {error}
+        </div>
+      );
+    }
+    case "datetime":
+      return (
+        <div className={cls}>
+          {label}
+          <input id={id} type="datetime-local" value={typeof value === "string" ? value : ""} onChange={(e) => set(e.target.value)} aria-invalid={err ? true : undefined} />
+          {hint}
+          {error}
+        </div>
+      );
+    case "blocks":
+      return (
+        <div className={cls}>
+          <span className="label-like">{def.label}</span>
+          {hint}
+          <ArticleEditor name={def.key} initial={Array.isArray(value) ? (value as StoredBlock[]) : []} value={Array.isArray(value) ? (value as StoredBlock[]) : []} onChange={(b) => set(b)} media={ctx.media} errors={ctx.errors} />
+          {error}
+        </div>
+      );
+    case "pick": {
+      const opts = ctx.options[def.source] ?? [];
+      const labelOf = (o: PickOption) => `${o.label}${o.status && o.status !== "published" ? ` — ${o.status}` : ""}`;
+      if (def.single) {
+        return (
+          <div className={cls}>
+            {label}
+            <select id={id} value={typeof value === "string" ? value : ""} onChange={(e) => set(e.target.value)} aria-invalid={err ? true : undefined}>
+              <option value="">Choose…</option>
+              {opts.map((o) => <option key={o.value} value={o.value}>{labelOf(o)}</option>)}
+            </select>
+            {hint}
+            {error}
+          </div>
+        );
+      }
+      const vals = Array.isArray(value) ? (value as string[]) : [];
+      return (
+        <div className={cls}>
+          <span className="label-like">{def.label}</span>
+          {hint}
+          <div className="list-editor">
+            {vals.map((v, i) => (
+              <div className="cms-case-row" key={i}>
+                <select value={v} aria-label={`${def.label} ${i + 1}`} onChange={(e) => set(vals.map((x, k) => (k === i ? e.target.value : x)))}>
+                  <option value="">Choose…</option>
+                  {opts.map((o) => <option key={o.value} value={o.value}>{labelOf(o)}</option>)}
+                </select>
+                <button type="button" onClick={() => set(move(vals, i, -1))} disabled={i === 0} aria-label={`Move ${i + 1} up`}>↑</button>
+                <button type="button" onClick={() => set(move(vals, i, 1))} disabled={i === vals.length - 1} aria-label={`Move ${i + 1} down`}>↓</button>
+                <button type="button" className="danger" onClick={() => set(vals.filter((_, k) => k !== i))} disabled={vals.length <= def.min}>Remove</button>
+                {ctx.errors[`${path}.${i}`] && <p className="field-err">{ctx.errors[`${path}.${i}`]}</p>}
+              </div>
+            ))}
+            <button type="button" onClick={() => set([...vals, ""])} disabled={vals.length >= def.max}>+ Add {def.noun}</button>
+            <p className="hint">{def.min === def.max ? `Exactly ${def.min}` : `${def.min} to ${def.max}`}.</p>
+          </div>
+          {error}
+        </div>
       );
     }
     case "cases": {
@@ -210,8 +286,11 @@ function Field({ def, value, path, set, ctx, bare = false }: { def: FieldDef; va
 }
 
 type Props = {
-  template: string;
-  sectionKey: string;
+  /** The server action that saves this section, and the fields it is told which section this is (page + key, or kind + id + key). */
+  action: (prev: CmsFormState, f: FormData) => Promise<CmsFormState>;
+  target: Record<string, string>;
+  /** The lists the choice fields draw from. */
+  options?: Record<string, PickOption[]>;
   fields: readonly FieldDef[];
   initial: unknown;
   updatedAt: string;
@@ -226,7 +305,7 @@ type Props = {
  * Edits the content of one section. The form is described by `fields` (src/lib/cms/fields.ts); nothing is written until Save, Cancel puts back what is
  * stored, and the server checks everything again against the strict schema of the section (the same rules, whatever the browser sent).
  */
-export default function SectionEditor({ template, sectionKey, fields, initial, updatedAt, damaged, media, cases, revisions }: Props) {
+export default function SectionEditor({ action, target, options = {}, fields, initial, updatedAt, damaged, media, cases, revisions }: Props) {
   const [value, setValue] = useState<Obj>(isObj(initial) ? initial : {});
   const [saved, setSaved] = useState<{ obj: Obj; stamp: string }>({ obj: isObj(initial) ? initial : {}, stamp: updatedAt });
   const [result, setResult] = useState<CmsFormState>(undefined);
@@ -237,18 +316,17 @@ export default function SectionEditor({ template, sectionKey, fields, initial, u
 
   const save = () => {
     const fd = new FormData();
-    fd.set("template", template);
-    fd.set("key", sectionKey);
+    for (const [k, v] of Object.entries(target)) fd.set(k, v);
     fd.set("content", JSON.stringify(value));
     fd.set("expectedUpdatedAt", saved.stamp);
     start(async () => {
-      const r = await saveSection(undefined, fd);
+      const r = await action(undefined, fd);
       setResult(r);
       if (r?.ok) setSaved({ obj: value, stamp: r.updatedAt });
     });
   };
   const edit = (f: FieldDef, v: unknown) => { setResult(undefined); setValue((cur) => ({ ...cur, [f.key]: v })); };
-  const ctx: Ctx = { media, cases, errors };
+  const ctx: Ctx = { media, cases, options, errors };
 
   return (
     <form className="svc-form cms-editor" onSubmit={(e) => { e.preventDefault(); if (dirty && !pending) save(); }} noValidate>

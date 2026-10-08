@@ -89,7 +89,7 @@ export default async function CaseStudiesPage({ searchParams }: { searchParams: 
                     <div className="cell-media">
                       <img className="thumb" src={c.imageUrl} alt="" width={64} height={48} loading="lazy" />
                       <div>
-                        <Link href={`/admin/case-studies/${c.id}/edit`}><b>{c.clientName}</b></Link> <small>{c.year}</small>
+                        <Link href={`/admin/case-studies/${c.id}`}><b>{c.clientName}</b></Link> <small>{c.year}</small>
                         <br /><small className="mono">/works/{c.slug}</small>
                         <br /><small>{c.typeLine}{c.filters.length ? ` · ${c.filters.map((f) => LABEL[f] ?? f).join(", ")}` : ""}</small>
                       </div>
@@ -106,7 +106,7 @@ export default async function CaseStudiesPage({ searchParams }: { searchParams: 
                   <td>{when(c.updatedAt)}</td>
                   <td>
                     <div className="row-actions">
-                      <Link href={`/admin/case-studies/${c.id}/edit`}>Edit</Link>
+                      <Link href={`/admin/case-studies/${c.id}`}>Edit</Link>
                       <a href={`/works/${c.slug}`} target="_blank" rel="noopener">{c.status === "published" ? "View" : "Preview"}</a>
                       {c.status === "published" ? (
                         <Link href={`/admin/case-studies/${c.id}/confirm?do=unpublish`}>Unpublish</Link>
