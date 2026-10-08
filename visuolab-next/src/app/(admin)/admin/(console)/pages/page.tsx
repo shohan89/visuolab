@@ -11,6 +11,7 @@ const SEO: Record<SeoStatus, { label: string; cls: string; title: string }> = {
   custom: { label: "Custom", cls: "badge published", title: "The page has its own title, description or picture." },
   default: { label: "Default", cls: "badge", title: "Uses the defaults from Settings → SEO." },
   noindex: { label: "Hidden from search", cls: "badge draft", title: "Search engines are told to keep this page out." },
+  nofollow: { label: "Links not followed", cls: "badge draft", title: "Search engines are asked not to follow this page's links." },
 };
 
 /** One row of the list. `services` is not a page of its own: /services sends visitors to the Services section of Home, so its row opens that section. */
@@ -20,12 +21,12 @@ export default async function PagesAdmin() {
   await requireAdmin();
   const [pages, home] = await Promise.all([adminPages(), adminSections("home")]);
   const by = (t: string) => pages.find((p) => p.template === t) as PageSummary;
-  const row = (p: PageSummary): Row => ({ key: p.template, name: p.label, route: p.route ?? "", status: p.status, updatedAt: p.updatedAt, seo: p.seo, sections: p.sections, hidden: p.hidden, content: `/admin/pages/${templateSlug(p.template)}`, seoHref: `/admin/pages/${templateSlug(p.template)}#seo` });
+  const row = (p: PageSummary): Row => ({ key: p.template, name: p.label, route: p.route ?? "", status: p.status, updatedAt: p.updatedAt, seo: p.seo, sections: p.sections, hidden: p.hidden, content: `/admin/pages/${templateSlug(p.template)}`, seoHref: `/admin/pages/${templateSlug(p.template)}/seo` });
   const services = home.sections.find((s) => s.key === "services");
   const rows: Row[] = [
     row(by("home")),
     row(by("about")),
-    { key: "services", name: "Services", route: "/services", status: by("home").status, updatedAt: services?.updatedAt ?? null, seo: "via-home", sections: 1, hidden: 0, content: "/admin/pages/home/services", seoHref: "/admin/pages/home#seo", note: "Opens the Services section of Home. The address /services leads there; each service page is edited under Services." },
+    { key: "services", name: "Services", route: "/services", status: by("home").status, updatedAt: services?.updatedAt ?? null, seo: "via-home", sections: 1, hidden: 0, content: "/admin/pages/home/services", seoHref: "/admin/pages/home/seo", note: "Opens the Services section of Home. The address /services leads there; each service page is edited under Services." },
     row(by("works")),
     row(by("blog")),
     row(by("contact")),

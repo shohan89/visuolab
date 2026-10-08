@@ -1,11 +1,9 @@
 import { notFound } from "next/navigation";
 import Link from "@/components/site/ui/Link";
 import { setSectionVisibility } from "@/actions/cms-pages";
-import PageSeoForm from "@/components/admin/PageSeoForm";
 import { TEMPLATES, templateFromParam, templateSlug } from "@/lib/cms/registry";
 import { requireAdmin } from "@/lib/server/auth";
-import { adminSections, seoDefaults } from "@/lib/server/cms-admin";
-import { mediaOptions } from "@/lib/server/services-admin";
+import { adminSections } from "@/lib/server/cms-admin";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +15,6 @@ export default async function PageAdmin({ params }: { params: Promise<{ page: st
   if (!template) notFound();
   const def = TEMPLATES[template];
   const { page, sections } = await adminSections(template);
-  const [media, defaults] = await Promise.all([def.hasSeo && page ? mediaOptions() : Promise.resolve([]), seoDefaults(template)]);
   const base = `/admin/pages/${templateSlug(template)}`;
 
   return (
@@ -25,10 +22,10 @@ export default async function PageAdmin({ params }: { params: Promise<{ page: st
       <div className="page-head">
         <div>
           <h1>{def.label} {page && <span className={`badge ${page.status}`}>{page.status}</span>}</h1>
-          <p className="admin-sub"><Link href="/admin/pages">← All pages</Link>{def.route ? <> · <code>{def.route}</code></> : null}{def.hasSeo && page ? <> · SEO: {page.noindex ? "hidden from search" : page.seoTitle || page.seoDescription || page.ogImageId || page.canonicalUrl ? "custom" : "default"}</> : null}</p>
+          <p className="admin-sub"><Link href="/admin/pages">← All pages</Link>{def.route ? <> · <code>{def.route}</code></> : null}{def.hasSeo && page ? <> · SEO: {page.noindex ? "hidden from search" : page.nofollow ? "links not followed" : page.seoTitle || page.seoDescription || page.ogImageId || page.canonicalUrl ? "custom" : "default"}</> : null}</p>
         </div>
         <div className="head-actions">
-          {def.hasSeo && page && <a className="btn" href="#seo">Edit SEO</a>}
+          {def.hasSeo && page && <Link className="btn" href={`${base}/seo`}>Edit SEO</Link>}
           {def.route && <a className="btn" href={def.route} target="_blank" rel="noopener">Preview ↗</a>}
         </div>
       </div>
@@ -71,15 +68,11 @@ export default async function PageAdmin({ params }: { params: Promise<{ page: st
       </ol>
 
       {def.hasSeo && page && (
-        <div id="seo">
-          <PageSeoForm
-            template={template}
-            updatedAt={page.updatedAt}
-            media={media}
-            defaults={defaults}
-            initial={{ seoTitle: page.seoTitle ?? "", seoDescription: page.seoDescription ?? "", ogImageId: page.ogImageId ?? "", canonicalUrl: page.canonicalUrl ?? "", noindex: page.noindex }}
-          />
-        </div>
+        <section className="form-card">
+          <h2>SEO</h2>
+          <p className="hint">The title, description, canonical address, share picture and robots settings used by search engines and link previews. They are separate from the page&apos;s own headline.</p>
+          <Link className="btn" href={`${base}/seo`}>Edit SEO</Link>
+        </section>
       )}
     </>
   );

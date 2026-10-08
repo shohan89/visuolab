@@ -2,6 +2,7 @@ import "server-only";
 import { listPages, listRevisions, listSections, readSectionForEdit } from "@/lib/cms/store";
 import type { PageTemplate } from "@/lib/cms/types";
 import { getDb } from "./db";
+import { getSiteUrl } from "@/lib/site";
 import { getSiteConfig } from "./site-config";
 
 /** Reads for the Pages screens of the admin (the writes are in src/actions/cms-pages.ts). */
@@ -15,4 +16,10 @@ export async function seoDefaults(template: PageTemplate): Promise<{ title: stri
   const pages: Partial<Record<string, { title: string; description: string }>> = (await getSiteConfig()).seo.pages;
   const p = pages[template];
   return { title: p?.title ?? "", description: p?.description ?? "" };
+}
+
+/** What the SEO editor shows around the fields: the site's name and address (for the search result preview) and whether indexing is on for the site. */
+export async function seoSite(): Promise<{ name: string; url: string; indexing: boolean }> {
+  const [cfg, url] = await Promise.all([getSiteConfig(), getSiteUrl()]);
+  return { name: cfg.general.siteName, url: url.replace(/\/+$/, ""), indexing: cfg.seo.indexing };
 }

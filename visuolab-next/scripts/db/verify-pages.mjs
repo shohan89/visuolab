@@ -286,13 +286,13 @@ db.exec(`INSERT INTO users (id, email, name, password_hash, role, created_at, up
 
 {
   const tok = () => one("SELECT updated_at u FROM pages WHERE id = 'page_home'").u;
-  const seo = { seoTitle: "Visuolab — Digital product design", seoDescription: "Visuolab is a design agency that unites brand, website and product into one story.", ogImageId: "media_earth", canonicalUrl: "", noindex: false };
+  const seo = { seoTitle: "Visuolab — Digital product design", seoDescription: "Visuolab is a design agency that unites brand, website and product into one story.", ogImageId: "media_earth", canonicalUrl: "", noindex: false, nofollow: false };
   const r = await store.savePageSeo(d1, "home", seo, tok(), "u1");
   const row = one("SELECT seo_title, seo_description, og_image_id, canonical_url, noindex FROM pages WHERE id = 'page_home'");
   check("page SEO is saved; empty text is stored as NULL (use the default)", r.ok && row.seo_title === seo.seoTitle && row.og_image_id === "media_earth" && row.canonical_url === null && row.noindex === 0);
-  const cleared = await store.savePageSeo(d1, "home", { seoTitle: "", seoDescription: "", ogImageId: "", canonicalUrl: "", noindex: true }, tok(), "u1");
-  const row2 = one("SELECT seo_title, seo_description, og_image_id, noindex FROM pages WHERE id = 'page_home'");
-  check("clearing the fields goes back to the defaults, and noindex can be set", cleared.ok && row2.seo_title === null && row2.seo_description === null && row2.og_image_id === null && row2.noindex === 1);
+  const cleared = await store.savePageSeo(d1, "home", { seoTitle: "", seoDescription: "", ogImageId: "", canonicalUrl: "", noindex: true, nofollow: true }, tok(), "u1");
+  const row2 = one("SELECT seo_title, seo_description, og_image_id, noindex, nofollow FROM pages WHERE id = 'page_home'");
+  check("clearing the fields goes back to the defaults, and noindex can be set", cleared.ok && row2.seo_title === null && row2.seo_description === null && row2.og_image_id === null && row2.noindex === 1 && row2.nofollow === 1);
   const stale = await store.savePageSeo(d1, "home", seo, T0, "u1");
   check("page SEO saved from an older version is a conflict", !stale.ok && stale.kind === "conflict");
   const badSeo = [
@@ -304,6 +304,7 @@ db.exec(`INSERT INTO users (id, email, name, password_hash, role, created_at, up
     ["a share picture that is not in the library", { ...seo, ogImageId: "media_nope" }, "ogImageId"],
     ["a share picture that is a video", { ...seo, ogImageId: "media_showreel" }, "ogImageId"],
     ["an unknown field", { ...seo, robots: "all" }, "form"],
+    ["a missing nofollow value", (({ nofollow, ...rest }) => rest)(seo), "nofollow"],
   ];
   for (const [name, input, field] of badSeo) {
     const x = await store.savePageSeo(d1, "home", input, tok(), "u1");
@@ -384,7 +385,7 @@ db.exec(`INSERT INTO users (id, email, name, password_hash, role, created_at, up
 {
   const pages = await store.listPages(d1);
   check("the page list has every template, with its address, section count and whether it is seeded", pages.length === TEMPLATE_NAMES.length && pages.find((p) => p.template === "home").route === "/" && pages.find((p) => p.template === "home").sections === 9 && pages.find((p) => p.template === "home").seeded && !pages.find((p) => p.template === "about").seeded, pages.map((p) => `${p.template}:${p.seeded}`).join(" "));
-  db.prepare("UPDATE pages SET seo_title = NULL, seo_description = NULL, og_image_id = NULL, canonical_url = NULL, noindex = 0 WHERE id = 'page_home'").run(); // earlier checks changed it
+  db.prepare("UPDATE pages SET seo_title = NULL, seo_description = NULL, og_image_id = NULL, canonical_url = NULL, noindex = 0, nofollow = 0 WHERE id = 'page_home'").run(); // earlier checks changed it
   const pages2 = await store.listPages(d1);
   const byT = (x) => pages2.find((p) => p.template === x);
   check("the page list gives each page its id, status and SEO status (default, custom, hidden from search); copy that is not a page has none", byT("home").id === "page_home" && byT("home").status === "published" && byT("home").seo === "default" && byT("shared").seo === null && byT("service_detail").seo === null);
@@ -470,6 +471,30 @@ db.exec(`INSERT INTO users (id, email, name, password_hash, role, created_at, up
     if (!(probe(t, ok) && !probe(t, over))) { limitsOk = false; which = `${t}.${key}`; }
   }
   check("generated: the limit in the form is the limit the schema enforces (max characters pass, one more is refused)", limitsOk, which);
+}
+
+
+// ---- robots, SEO guidance and the SEO fields -----------------------------------------------------------------------------------------------
+{
+  const g = await imp("src/lib/cms/seo-guidance.ts");
+  const bands = [g.titleBand(0).level, g.titleBand(10).level, g.titleBand(45).level, g.titleBand(65).level, g.titleBand(71).level].join();
+  check("title guidance: empty, short (under 30), good (30 to 60), long (61 to 70), over (past 70)", bands === "empty,short,good,long,over", bands);
+  const dbands = [g.descriptionBand(0).level, g.descriptionBand(30).level, g.descriptionBand(120).level, g.descriptionBand(180).level, g.descriptionBand(201).level].join();
+  check("description guidance: empty, short (under 70), good (70 to 160), long (161 to 200), over (past 200)", dbands === "empty,short,good,long,over", dbands);
+  check("the guidance gives a sentence for each band, naming the numbers", g.titleBand(10).message.includes("30 to 60") && g.descriptionBand(201).message.includes("200"));
+  const { pageMetadata } = await imp("src/lib/seo/metadata.ts");
+  const robots = (o) => JSON.stringify(pageMetadata({ title: "t", description: "d", path: "/x", ...o }).robots);
+  check("robots meta: index and follow by default", robots({}) === '{"index":true,"follow":true}');
+  check("robots meta: noindex alone keeps following links", robots({ noindex: true, nofollow: false }) === '{"index":false,"follow":true}');
+  check("robots meta: nofollow alone keeps indexing", robots({ nofollow: true }) === '{"index":true,"follow":false}');
+  check("robots meta: both", robots({ noindex: true, nofollow: true }) === '{"index":false,"follow":false}');
+  check("robots meta: a page kept out of results without a nofollow choice (as every page was before) does not follow either", robots({ noindex: true }) === '{"index":false,"follow":false}');
+  db.prepare("UPDATE pages SET nofollow = 1 WHERE id = 'page_home'").run();
+  check("SEO status shows links not followed", (await store.listPages(d1)).find((p) => p.template === "home").seo === "nofollow");
+  db.prepare("UPDATE pages SET nofollow = 0 WHERE id = 'page_home'").run();
+  rejects("nofollow must be 0 or 1", "UPDATE pages SET nofollow = 2 WHERE id = 'page_home'", /CHECK/);
+  const rec = (await store.loadPage(d1, "home")).page;
+  check("a page record carries its robots choices", rec.noindex === false && rec.nofollow === false);
 }
 
 

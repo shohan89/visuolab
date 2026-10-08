@@ -20,7 +20,7 @@ const toPage = (r: Row): PageRecord => ({
   id: s(r.id), slug: s(r.slug), title: s(r.title), status: s(r.status) as PageStatus, template: s(r.template) as PageTemplate,
   seoTitle: r.seo_title == null ? null : s(r.seo_title), seoDescription: r.seo_description == null ? null : s(r.seo_description),
   ogImageId: r.og_image_id == null ? null : s(r.og_image_id), canonicalUrl: r.canonical_url == null ? null : s(r.canonical_url),
-  noindex: r.noindex === 1, createdAt: s(r.created_at), updatedAt: s(r.updated_at),
+  noindex: r.noindex === 1, nofollow: r.nofollow === 1, createdAt: s(r.created_at), updatedAt: s(r.updated_at),
 });
 
 /* ---- reading ------------------------------------------------------------------------------------------------------ */
@@ -219,34 +219,34 @@ export async function savePageSeo(db: Db, template: PageTemplate, input: unknown
   if (expected !== expectedUpdatedAt) return { ok: false, kind: "conflict" };
   let now = new Date().toISOString();
   if (now <= expected) now = new Date(Date.parse(expected) + 1).toISOString();
-  const next = { seoTitle: v.seoTitle || null, seoDescription: v.seoDescription || null, ogImageId: v.ogImageId || null, canonicalUrl: v.canonicalUrl || null, noindex: v.noindex };
+  const next = { seoTitle: v.seoTitle || null, seoDescription: v.seoDescription || null, ogImageId: v.ogImageId || null, canonicalUrl: v.canonicalUrl || null, noindex: v.noindex, nofollow: v.nofollow };
   const before = toPage(row);
   const res = await db
-    .prepare("UPDATE pages SET seo_title = ?3, seo_description = ?4, og_image_id = ?5, canonical_url = ?6, noindex = ?7, updated_at = ?8, updated_by = ?9 WHERE id = ?1 AND updated_at = ?2")
-    .bind(s(row.id), expected, next.seoTitle, next.seoDescription, next.ogImageId, next.canonicalUrl, next.noindex ? 1 : 0, now, userId)
+    .prepare("UPDATE pages SET seo_title = ?3, seo_description = ?4, og_image_id = ?5, canonical_url = ?6, noindex = ?7, nofollow = ?10, updated_at = ?8, updated_by = ?9 WHERE id = ?1 AND updated_at = ?2")
+    .bind(s(row.id), expected, next.seoTitle, next.seoDescription, next.ogImageId, next.canonicalUrl, next.noindex ? 1 : 0, now, userId, next.nofollow ? 1 : 0)
     .run();
   if ((res.meta?.changes ?? 0) !== 1) return { ok: false, kind: "conflict" };
-  const names = (["seoTitle", "seoDescription", "ogImageId", "canonicalUrl", "noindex"] as const).filter((k) => before[k] !== next[k]);
+  const names = (["seoTitle", "seoDescription", "ogImageId", "canonicalUrl", "noindex", "nofollow"] as const).filter((k) => before[k] !== next[k]);
   return { ok: true, updatedAt: now, changedFields: names };
 }
 
 /* ---- what the admin screens show ------------------------------------------------------------------------------------- */
 
 /** How a page's search settings stand: its own values, the defaults from Settings, or kept out of search engines. Null for copy that is not a page. */
-export type SeoStatus = "custom" | "default" | "noindex";
+export type SeoStatus = "custom" | "default" | "noindex" | "nofollow";
 
 export type PageSummary = { template: PageTemplate; id: string; label: string; route: string | null; slug: string; status: PageStatus; sections: number; hidden: number; updatedAt: string | null; seeded: boolean; seo: SeoStatus | null };
 
 /** Every page of the CMS with how many sections it has, how many are hidden and when something on it last changed. A page that has not been seeded is listed too. */
 export async function listPages(db: Db): Promise<PageSummary[]> {
-  const pages = (await db.prepare("SELECT id, slug, template, status, seo_title, seo_description, og_image_id, canonical_url, noindex, updated_at FROM pages").all<Row>()).results ?? [];
+  const pages = (await db.prepare("SELECT id, slug, template, status, seo_title, seo_description, og_image_id, canonical_url, noindex, nofollow, updated_at FROM pages").all<Row>()).results ?? [];
   const secs = (await db.prepare("SELECT page_id, is_enabled, updated_at FROM page_sections").all<Row>()).results ?? [];
   return (Object.keys(TEMPLATES) as PageTemplate[]).map((template) => {
     const p = pages.find((x) => x.template === template);
     const mine = p ? secs.filter((x) => x.page_id === p.id) : [];
     const newest = [...mine.map((x) => s(x.updated_at)), ...(p ? [s(p.updated_at)] : [])].sort().pop() ?? null;
     const own = !!p && !!(p.seo_title || p.seo_description || p.og_image_id || p.canonical_url);
-    const seo: SeoStatus | null = !TEMPLATES[template].hasSeo ? null : p?.noindex === 1 ? "noindex" : own ? "custom" : "default";
+    const seo: SeoStatus | null = !TEMPLATES[template].hasSeo ? null : p?.noindex === 1 ? "noindex" : p?.nofollow === 1 ? "nofollow" : own ? "custom" : "default";
     return { template, id: p ? s(p.id) : `page_${template}`, label: TEMPLATES[template].label, route: TEMPLATES[template].route, slug: p ? s(p.slug) : template.replace(/_/g, "-"), status: p ? (s(p.status) as PageStatus) : "published", sections: TEMPLATES[template].sections.length, hidden: mine.filter((x) => x.is_enabled !== 1).length, updatedAt: newest, seeded: !!p, seo };
   });
 }

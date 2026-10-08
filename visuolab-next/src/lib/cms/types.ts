@@ -81,6 +81,7 @@ export type PageRecord = {
   ogImageId: string | null;
   canonicalUrl: string | null;
   noindex: boolean;
+  nofollow: boolean;
   createdAt: string;
   updatedAt: string;
 };

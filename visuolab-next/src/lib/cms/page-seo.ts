@@ -13,6 +13,9 @@ export const pageSeoSchema = z.strictObject({
   ogImageId: z.string().trim().max(80).regex(/^([A-Za-z0-9_-]+)?$/, "Not a media id"),
   /** Empty (the page's own address), a path on this site, or a full https:// address. */
   canonicalUrl: z.string().trim().max(300).refine((v) => v === "" || (v.startsWith("https://") ? externalHrefOk(v) : v.startsWith("/") && internalHrefOk(v)), "Canonical address must be a path like /about or a full https:// address"),
+  /** Robots: index (false) or keep out of search results (true). */
   noindex: z.boolean(),
+  /** Robots: follow the page's links (false) or not (true). */
+  nofollow: z.boolean(),
 });
 export type PageSeoInput = z.infer<typeof pageSeoSchema>;

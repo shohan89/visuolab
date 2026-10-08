@@ -53,9 +53,9 @@ const PATHS: Record<SeoPageKey, string> = { home: "/", about: "/about", works: "
 async function pageOverrides(page: SeoPageKey) {
   try {
     return await getDb()
-      .prepare("SELECT p.seo_title, p.seo_description, p.canonical_url, p.noindex, m.url AS og_url, m.width AS og_width, m.height AS og_height FROM pages p LEFT JOIN media m ON m.id = p.og_image_id WHERE p.template = ?1")
+      .prepare("SELECT p.seo_title, p.seo_description, p.canonical_url, p.noindex, p.nofollow, m.url AS og_url, m.width AS og_width, m.height AS og_height FROM pages p LEFT JOIN media m ON m.id = p.og_image_id WHERE p.template = ?1")
       .bind(page)
-      .first<{ seo_title: string | null; seo_description: string | null; canonical_url: string | null; noindex: number; og_url: string | null; og_width: number | null; og_height: number | null }>();
+      .first<{ seo_title: string | null; seo_description: string | null; canonical_url: string | null; noindex: number; nofollow: number; og_url: string | null; og_width: number | null; og_height: number | null }>();
   } catch {
     return null; // the page CMS tables are not there yet (a database that has not been migrated): the settings alone decide
   }
@@ -72,8 +72,10 @@ export async function fixedPageSeo(page: SeoPageKey, opts: { image?: SeoImage; i
   const title = own?.seo_title || p.title;
   const text = own?.seo_description || p.description;
   const noindex = !!own?.noindex || p.noindex || !cfg.seo.indexing;
+  // links are not followed when the page says so, or when the page is kept out of search results by the Settings (as before)
+  const nofollow = !!own?.nofollow || p.noindex || !cfg.seo.indexing;
   const image = own?.og_url ? await sized(publicMediaUrl(own.og_url), title, { width: own.og_width, height: own.og_height }) : opts.image;
-  const metadata = pageMetadata({ site, title, description: description(text), path, ...(own?.canonical_url ? { canonical: own.canonical_url } : {}), image, noindex });
+  const metadata = pageMetadata({ site, title, description: description(text), path, ...(own?.canonical_url ? { canonical: own.canonical_url } : {}), image, noindex, nofollow });
   const trail: Crumb[] = page === "home" ? [] : [{ name: LABELS[page], path }];
   const nodes: Record<string, unknown>[] = [];
   if (page === "home") nodes.push(websiteNode(siteUrl, cfg));

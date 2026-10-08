@@ -24,7 +24,7 @@ const content = (id) => JSON.parse(sql(`SELECT content FROM page_sections WHERE 
 sql("DELETE FROM rate_limits"); sql("DELETE FROM sessions");
 const refsSnapshot = sql("SELECT section_id, field_path, kind, media_id, case_study_id FROM page_section_refs");
 const mediaBefore = sql("SELECT id FROM media").map((m) => m.id);
-const snapshot = { sections: sql("SELECT id, content, is_enabled, updated_at FROM page_sections"), pages: sql("SELECT id, seo_title, seo_description, og_image_id, canonical_url, noindex, updated_at FROM pages") };
+const snapshot = { sections: sql("SELECT id, content, is_enabled, updated_at FROM page_sections"), pages: sql("SELECT id, seo_title, seo_description, og_image_id, canonical_url, noindex, nofollow, updated_at FROM pages") };
 const esc = (v) => (v === null ? "NULL" : typeof v === "number" ? v : `'${String(v).replace(/'/g, "''")}'`);
 
 const browser = await chromium.launch();
@@ -56,7 +56,7 @@ try {
   await go("/admin/pages/page_home");
   check("an editor also opens by page id, and shows the sections in their public order", (await page.locator("ol.section-cards li").count()) === 9 && (await page.locator("ol.section-cards li h3").first().innerText()) === "Hero");
   await go("/admin/pages/home");
-  check("the page screen has Edit SEO (jumps to the search settings) and Preview", (await page.getByRole("link", { name: "Edit SEO" }).getAttribute("href")) === "#seo" && (await page.locator("#seo form").count()) === 1 && (await page.getByRole("link", { name: /Preview/ }).getAttribute("href")) === "/");
+  check("the page screen has Edit SEO (opens the SEO editor) and Preview", (await page.getByRole("link", { name: "Edit SEO" }).first().getAttribute("href")) === "/admin/pages/home/seo" && (await page.getByRole("link", { name: /Preview/ }).getAttribute("href")) === "/");
 
   // ---- a page: sections, hide and show
   await go("/admin/pages/home");
@@ -337,28 +337,81 @@ try {
   await go("/admin/pages/contact/form");
   check("the contact form's option lists are editable, with a minimum of three", (await page.locator("fieldset.le-item legend", { hasText: /^Option \d/ }).count()) === 10);
 
-  // ---- page search settings
-  await go("/admin/pages/about");
-  await page.getByLabel("Title", { exact: true }).fill("ADMIN ABOUT TITLE");
-  await page.getByLabel("Description").fill("A description of the about page that is long enough to pass.");
-  await page.getByLabel("Canonical address").fill("/about");
-  await page.getByLabel("Keep this page out of search engines").check();
-  await page.getByRole("button", { name: "Save search settings" }).click();
-  await page.waitForTimeout(800);
+  // ---- the SEO editor
+  await go("/admin/pages");
+  check("the list's Edit SEO opens the page's own SEO editor", (await page.locator("table.pages-table tbody tr").nth(1).getByRole("link", { name: "Edit SEO" }).getAttribute("href")) === "/admin/pages/about/seo" && (await page.locator("table.pages-table tbody tr").nth(2).getByRole("link", { name: "Edit SEO" }).getAttribute("href")) === "/admin/pages/home/seo");
+  await go("/admin/pages/about/seo");
+  check("the SEO editor has SEO title, SEO description, Canonical URL, Open Graph image, Indexing and Links", (await page.getByLabel("SEO title").count()) === 1 && (await page.getByLabel("SEO description").count()) === 1 && (await page.getByLabel("Canonical URL").count()) === 1 && (await page.getByRole("button", { name: /Open Graph image/ }).count()) >= 1 && (await page.getByLabel("Indexing").count()) === 1 && (await page.getByLabel("Links").count()) === 1);
+  const headline = async () => (await html("/about")).match(/<h1[^>]*id="about-title"[^>]*>([\s\S]*?)<\/h1>/)?.[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+  const h1Before = await headline();
+  const guide = async (id) => page.locator(`#${id} .seo-guide`);
+  await page.getByLabel("SEO title").fill("Tiny");
+  check("title guidance: a short title is flagged short, with its count", /is-short/.test((await (await guide("seo-title-guide")).getAttribute("class")) ?? "") && (await (await guide("seo-title-guide")).innerText()).includes("4/70"));
+  await page.getByLabel("SEO title").fill("A good length title for the about page of the website");
+  check("title guidance: 30 to 60 characters is good", /is-good/.test((await (await guide("seo-title-guide")).getAttribute("class")) ?? ""));
+  await page.getByLabel("SEO title").fill("x".repeat(66));
+  check("title guidance: past 60 is long (search engines may cut it)", /is-long/.test((await (await guide("seo-title-guide")).getAttribute("class")) ?? ""));
+  await page.getByLabel("SEO title").fill("x".repeat(72));
+  check("title guidance: past 70 is over the limit", /is-over/.test((await (await guide("seo-title-guide")).getAttribute("class")) ?? ""));
+  await page.getByLabel("SEO description").fill("Too short");
+  check("description guidance: under 70 is flagged short", /is-short/.test((await (await guide("seo-desc-guide")).getAttribute("class")) ?? ""));
+  await page.getByLabel("SEO description").fill("d".repeat(120));
+  check("description guidance: 70 to 160 is good", /is-good/.test((await (await guide("seo-desc-guide")).getAttribute("class")) ?? ""));
+  await page.getByLabel("SEO description").fill("d".repeat(190));
+  check("description guidance: 161 to 200 is long", /is-long/.test((await (await guide("seo-desc-guide")).getAttribute("class")) ?? ""));
+  await page.getByLabel("SEO title").fill("ADMIN ABOUT TITLE");
+  await page.getByLabel("SEO description").fill("A description of the about page that is long enough to pass the schema check.");
+  check("the search result preview follows what is typed", (await page.locator(".sp-title").innerText()) === "ADMIN ABOUT TITLE" && (await page.locator(".sp-desc").innerText()).startsWith("A description of the about page"));
+  await page.getByLabel("Canonical URL").fill("/about");
+  await page.getByLabel("Indexing").selectOption("noindex");
+  await page.getByLabel("Links").selectOption("nofollow");
+  check("the robots result is spelled out", (await page.locator("code", { hasText: "noindex, nofollow" }).count()) === 1);
+  await page.getByRole("button", { name: "Save SEO" }).click();
+  await page.waitForTimeout(900);
   const about = await html("/about");
-  check("a page's search settings are saved and the page uses them (title, description, canonical, noindex)", has(about, "<title>ADMIN ABOUT TITLE</title>") && has(about, "A description of the about page that is long enough to pass.") && /rel="canonical" href="[^"]*\/about"/.test(about) && /name="robots" content="noindex/.test(about));
-  await page.getByLabel("Description").fill("short");
-  await page.getByRole("button", { name: "Save search settings" }).click();
+  check("the page's metadata is generated from the stored values (title, description, canonical, robots noindex + nofollow, Open Graph title)", has(about, "<title>ADMIN ABOUT TITLE</title>") && has(about, "A description of the about page that is long enough to pass the schema check.") && /rel="canonical" href="[^"]*\/about"/.test(about) && /name="robots" content="noindex, nofollow"/.test(about) && /property="og:title" content="ADMIN ABOUT TITLE"/.test(about));
+  check("the page's own headline is separate from the SEO title (the H1 did not change)", (await headline()) === h1Before && !h1Before.includes("ADMIN ABOUT TITLE"), h1Before);
+  {
+    const visible = (about.split("</head>")[1] ?? "").replace(/<title>[\s\S]*?<\/title>/g, "").replace(/<script[\s\S]*?<\/script>/g, "").replace(/<[^>]+>/g, " ");
+    check("SEO fields are not shown as visible content (the title and description appear only in the head, not in the page text)", !visible.includes("ADMIN ABOUT TITLE") && !visible.includes("A description of the about page that is long enough"));
+  }
+  await page.getByLabel("Indexing").selectOption("index");
+  await page.getByRole("button", { name: "Save SEO" }).click();
+  await page.waitForTimeout(900);
+  check("index and follow are independent: noindex off, nofollow still on", /name="robots" content="index, nofollow"/.test(await html("/about")));
+  await page.getByLabel("Links").selectOption("follow");
+  await page.getByLabel("Indexing").selectOption("noindex");
+  await page.getByRole("button", { name: "Save SEO" }).click();
+  await page.waitForTimeout(900);
+  check("and the other way round: noindex with links followed", /name="robots" content="noindex, follow"/.test(await html("/about")));
+  await page.getByLabel("SEO description").fill("short");
+  await page.getByRole("button", { name: "Save SEO" }).click();
   await page.waitForTimeout(600);
-  check("a description under 20 characters is refused", (await page.locator(".field-err").first().innerText()).includes("too short"));
-  await page.getByLabel("Title", { exact: true }).fill("");
-  await page.getByLabel("Description").fill("");
-  await page.getByLabel("Canonical address").fill("");
-  await page.getByLabel("Keep this page out of search engines").uncheck();
-  await page.getByRole("button", { name: "Save search settings" }).click();
-  await page.waitForTimeout(800);
+  check("a description under 20 characters is refused by the server", (await page.locator(".field-err").first().innerText()).includes("too short"));
+  await page.getByLabel("SEO description").fill("A description of the about page that is long enough to pass the schema check.");
+  // the Open Graph image, chosen from the media library
+  await page.getByRole("button", { name: /Choose Open Graph image/ }).click();
+  await page.locator("dialog.picker[open] .picker-grid li", { hasText: /Earth/ }).first().click();
+  check("the Open Graph image is chosen from the media library and shown in the share card preview", (await page.locator(".share-card img").count()) === 1 && (await page.locator(".media-info").innerText()).includes("earth.webp"));
+  await page.getByLabel("Indexing").selectOption("index");
+  await page.getByRole("button", { name: "Save SEO" }).click();
+  await page.waitForTimeout(900);
+  const about3 = await html("/about");
+  check("the Open Graph image reaches the page's metadata (og:image and twitter:image)", /property="og:image" content="[^"]*earth[^"]*"/.test(about3) && /name="twitter:image" content="[^"]*earth/.test(about3));
+  await go("/admin/pages/about/seo");
+  await page.getByLabel("SEO title").fill("");
+  await page.getByLabel("SEO description").fill("");
+  await page.getByLabel("Canonical URL").fill("");
+  await page.getByLabel("Links").selectOption("follow");
+  await page.getByRole("button", { name: /Remove Open Graph image/ }).click();
+  await page.getByRole("button", { name: "Save SEO" }).click();
+  await page.waitForTimeout(900);
   const about2 = await html("/about");
-  check("cleared fields go back to the defaults from Settings", has(about2, "<title>About — Visuolab</title>") && !/name="robots" content="noindex/.test(about2));
+  check("cleared fields go back to the defaults from Settings, and robots to index, follow", has(about2, "<title>About — Visuolab</title>") && /name="robots" content="index, follow"/.test(about2) && !/property="og:image" content="[^"]*earth/.test(about2));
+  const au = sql("SELECT summary FROM audit_logs WHERE action = 'cms.page.seo' ORDER BY created_at DESC LIMIT 1")[0];
+  check("an SEO save is in the audit log, naming the fields and not their values", !!au && /changed/.test(au.summary) && !/ADMIN ABOUT TITLE/.test(au.summary), au?.summary);
+  await go("/admin/pages/service-detail/seo").catch(() => {});
+  check("copy that is not a page (shared, labels) has no SEO editor", (await fetch(BASE + "/admin/pages/shared/seo", { redirect: "manual", headers: { cookie: (await ctx.cookies()).map((c) => `${c.name}=${c.value}`).join("; ") } })).status === 404);
 
   // ---- mobile: no sideways scroll in the editor
   await page.setViewportSize({ width: 390, height: 900 });
@@ -394,7 +447,7 @@ try {
 } finally {
   // ---- put everything back
   for (const s of snapshot.sections) sql(`UPDATE page_sections SET content = ${esc(s.content)}, is_enabled = ${s.is_enabled}, updated_at = ${esc(s.updated_at)} WHERE id = ${esc(s.id)}`);
-  for (const p of snapshot.pages) sql(`UPDATE pages SET seo_title = ${esc(p.seo_title)}, seo_description = ${esc(p.seo_description)}, og_image_id = ${esc(p.og_image_id)}, canonical_url = ${esc(p.canonical_url)}, noindex = ${p.noindex}, updated_at = ${esc(p.updated_at)} WHERE id = ${esc(p.id)}`);
+  for (const p of snapshot.pages) sql(`UPDATE pages SET seo_title = ${esc(p.seo_title)}, seo_description = ${esc(p.seo_description)}, og_image_id = ${esc(p.og_image_id)}, canonical_url = ${esc(p.canonical_url)}, noindex = ${p.noindex}, nofollow = ${p.nofollow}, updated_at = ${esc(p.updated_at)} WHERE id = ${esc(p.id)}`);
   sql("DELETE FROM page_section_revisions"); // the versions this run made
   sql("DELETE FROM page_section_refs");
   for (const r of refsSnapshot) sql(`INSERT INTO page_section_refs (section_id, field_path, kind, media_id, case_study_id) VALUES (${esc(r.section_id)}, ${esc(r.field_path)}, ${esc(r.kind)}, ${esc(r.media_id)}, ${esc(r.case_study_id)})`);

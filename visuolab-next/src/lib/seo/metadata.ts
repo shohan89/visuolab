@@ -31,6 +31,8 @@ export type PageSeo = {
   keywords?: string[];
   /** Keeps the page out of search results (previews of unpublished content, or a page switched off in the SEO settings) */
   noindex?: boolean;
+  /** Tells search engines not to follow the page's links. When not given it follows `noindex` (a page kept out of search results has its links ignored too). */
+  nofollow?: boolean;
 };
 
 /** Text for a head tag: markup used in headlines (<em>…</em>) removed, whitespace collapsed. */
@@ -61,7 +63,7 @@ export function twitterHandle(profileUrl: string): string | undefined {
 export const absoluteUrl = (siteUrl: string, pathOrUrl: string): string => (/^https?:\/\//.test(pathOrUrl) ? pathOrUrl : `${siteUrl.replace(/\/+$/, "")}${pathOrUrl.startsWith("/") ? "" : "/"}${pathOrUrl}`);
 
 /** Title, description, canonical URL, robots, Open Graph and Twitter card for one page. */
-export function pageMetadata({ site, title, description, path, canonical, image, article, keywords, noindex }: PageSeo): Metadata {
+export function pageMetadata({ site, title, description, path, canonical, image, article, keywords, noindex, nofollow }: PageSeo): Metadata {
   const t = plain(title);
   const d = plain(description);
   const pic = image ?? site?.ogImage;
@@ -73,7 +75,7 @@ export function pageMetadata({ site, title, description, path, canonical, image,
     alternates: { canonical: url },
     ...(keywords?.length ? { keywords } : {}),
     // indexable pages say so explicitly; previews and switched-off pages say noindex
-    robots: noindex ? { index: false, follow: false } : { index: true, follow: true },
+    robots: { index: !noindex, follow: !(nofollow ?? noindex) },
     openGraph: {
       title: t,
       description: d,
