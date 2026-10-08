@@ -63,15 +63,28 @@ export const entitySection = (kind: EntityKind, key: string) => sectionOf(sectio
 
 export const loadEntity = (kind: EntityKind, id: string) => KINDS[kind].load(id);
 
-export type SectionCard = { key: string; name: string; type: string; about: string; anchor: string | null; toggle: boolean; enabled: boolean; lastSaved: string | null };
+export type SectionCard = {
+  key: string; name: string; type: string; about: string; anchor: string | null;
+  /** Can be switched off. False for parts that are not a block of the page (see `lock`). */
+  switchable: boolean; lock: string | null; confirm: string | null;
+  enabled: boolean; lastSaved: string | null;
+};
+
+/** The keys of the sections an editor switched off (not counting the two service sections that keep a flag in the record). */
+export async function hiddenKeys(kind: EntityKind, id: string): Promise<Set<string>> {
+  const rows = (await getDb().prepare("SELECT section_key FROM entity_hidden_sections WHERE entity_type = ?1 AND entity_id = ?2").bind(kind, id).all<{ section_key: string }>()).results ?? [];
+  return new Set(rows.map((r) => r.section_key));
+}
 
 /** The sections of one record in page order, with their switch and when each was last saved. */
 export async function sectionCards(kind: EntityKind, rec: Rec): Promise<SectionCard[]> {
+  const hidden = await hiddenKeys(kind, rec.id);
   const last = (await getDb().prepare("SELECT section_key, MAX(replaced_at) AS at FROM entity_section_revisions WHERE entity_type = ?1 AND entity_id = ?2 GROUP BY section_key").bind(kind, rec.id).all<{ section_key: string; at: string }>()).results ?? [];
   const at = new Map(last.map((r) => [r.section_key, r.at]));
   return sectionsOf(kind).map((s) => ({
     key: s.key, name: s.name, type: s.type, about: s.about, anchor: s.anchor ?? null,
-    toggle: !!s.toggle, enabled: s.toggle ? s.toggle.read(rec.input) : true, lastSaved: at.get(s.key) ?? null,
+    switchable: !s.lock, lock: s.lock ?? null, confirm: s.confirm ?? null,
+    enabled: s.lock ? true : s.toggle ? s.toggle.read(rec.input) : !hidden.has(s.key), lastSaved: at.get(s.key) ?? null,
   }));
 }
 
@@ -192,16 +205,32 @@ export async function saveEntitySection(a: { kind: EntityKind; id: string; key: 
   return { ok: true, updatedAt: after?.updatedAt ?? t, changedFields: changed };
 }
 
-/** Shows or hides a section the design can hide (service: "What we fix", "Call to action band"). The whole record is checked as the full form would. */
-export async function setEntitySectionEnabled(kind: EntityKind, id: string, key: string, on: boolean): Promise<{ ok: true } | { ok: false; kind: "locked" | "missing" | "invalid"; errors?: Errors }> {
+export type VisibilityResult = { ok: true; changed: boolean } | { ok: false; kind: "locked" | "missing" | "invalid" | "confirm"; errors?: Errors };
+
+/**
+ * Shows or hides a section. The content is never touched: a hidden section stays in the record and can be shown again.
+ * Important sections (`confirm`) are only hidden when the editor confirmed. The two service sections that always had a flag use it (and the whole
+ * record is checked as the full form would, so an unfinished one cannot be shown); every other section is a row in entity_hidden_sections.
+ */
+export async function setEntitySectionEnabled(a: { kind: EntityKind; id: string; key: string; on: boolean; confirmed: boolean; userId: string }): Promise<VisibilityResult> {
+  const { kind, id, key, on } = a;
   const section = entitySection(kind, key);
   const k = KINDS[kind];
   const rec = section ? await k.load(id) : null;
   if (!section || !rec) return { ok: false, kind: "missing" };
-  if (!section.toggle) return { ok: false, kind: "locked" };
-  const next = section.toggle.write(rec.input, on);
-  const errors = await checkRecord(kind, rec, next, section);
-  if (Object.keys(errors).length) return { ok: false, kind: "invalid", errors };
-  await k.write(id, next as never);
-  return { ok: true };
+  if (section.lock) return { ok: false, kind: "locked" };
+  if (!on && section.confirm && !a.confirmed) return { ok: false, kind: "confirm" };
+  if (section.toggle) {
+    if (section.toggle.read(rec.input) === on) return { ok: true, changed: false };
+    const next = section.toggle.write(rec.input, on);
+    const errors = await checkRecord(kind, rec, next, section);
+    if (Object.keys(errors).length) return { ok: false, kind: "invalid", errors };
+    await k.write(id, next as never);
+    return { ok: true, changed: true };
+  }
+  const db = getDb();
+  const was = (await hiddenKeys(kind, id)).has(key);
+  if (on) await db.prepare("DELETE FROM entity_hidden_sections WHERE entity_type = ?1 AND entity_id = ?2 AND section_key = ?3").bind(kind, id, key).run();
+  else await db.prepare("INSERT OR IGNORE INTO entity_hidden_sections (entity_type, entity_id, section_key, hidden_at, hidden_by) VALUES (?1, ?2, ?3, ?4, ?5)").bind(kind, id, key, now(), a.userId).run();
+  return { ok: true, changed: was === on };
 }

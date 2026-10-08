@@ -3,7 +3,7 @@ import { notFound, permanentRedirect } from "next/navigation";
 import JsonLd from "@/components/site/JsonLd";
 import ServicePage from "@/components/site/service/ServicePage";
 import { getAdmin } from "@/lib/server/auth";
-import { getServiceBySlug, getSlugRedirect } from "@/lib/server/cms";
+import { getHiddenSections, getServiceBySlug, getSlugRedirect } from "@/lib/server/cms";
 import { getDb } from "@/lib/server/db";
 import { getLogoSeeds, getPage, getRating, getReviewSeeds } from "@/lib/server/cms-pages";
 import { serviceSeo } from "@/lib/server/seo";
@@ -38,11 +38,11 @@ export default async function ServiceRoute({ params }: Props) {
   const { service, redirectTo, preview } = await load((await params).slug);
   if (redirectTo) permanentRedirect(`/services/${redirectTo}`);
   if (!service) notFound();
-  const [seo, { content, enabled }, logos, reviews, rating] = await Promise.all([serviceSeo(service, !!preview), getPage("service_detail"), getLogoSeeds(), getReviewSeeds(), getRating()]);
+  const [seo, { content, enabled }, logos, reviews, rating, hidden] = await Promise.all([serviceSeo(service, !!preview), getPage("service_detail"), getLogoSeeds(), getReviewSeeds(), getRating(), getHiddenSections(getDb(), "service", service.slug)]);
   return (
     <>
       <JsonLd nodes={seo.jsonLd} />
-      <ServicePage service={service} chrome={{ rating, logos: enabled.logos ? { content: content.logos, items: logos } : null, reviews: enabled.reviews ? { content: content.reviews, items: reviews } : null }} />
+      <ServicePage service={service} hidden={hidden} chrome={{ rating, logos: enabled.logos ? { content: content.logos, items: logos } : null, reviews: enabled.reviews ? { content: content.reviews, items: reviews } : null }} />
     </>
   );
 }

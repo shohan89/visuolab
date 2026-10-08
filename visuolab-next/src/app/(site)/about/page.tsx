@@ -26,13 +26,13 @@ export default async function AboutPage() {
   return (
     <>
       <JsonLd nodes={seo.jsonLd} />
-      <AboutHeroRun content={content.hero} tiles={tiles} />
+      <AboutHeroRun content={enabled.hero ? content.hero : null} tiles={tiles} />
       {enabled.principles && <AboutPrinciples content={content.principles} />}
       {enabled.mission && <AboutMission content={content.mission} />}
       {enabled.story && <AboutStory content={content.story} />}
       {enabled.manifesto && <AboutManifesto content={content.manifesto} />}
       {enabled.places && <AboutPlaces content={content.places} />}
-      <AboutFaqRun faq={enabled.faq ? content.faq : null} careers={content.careers} />
+      <AboutFaqRun faq={enabled.faq ? content.faq : null} careers={enabled.careers ? content.careers : null} />
     </>
   );
 }

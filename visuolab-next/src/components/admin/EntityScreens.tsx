@@ -3,9 +3,10 @@ import { saveEntitySectionAction, setEntitySectionVisibility } from "@/actions/c
 import Link from "@/components/site/ui/Link";
 import { ENTITIES, type EntityKind } from "@/lib/cms/entity";
 import { requireAdmin } from "@/lib/server/auth";
-import { loadEntity, pickOptions, readSectionForEdit, sectionCards } from "@/lib/server/entity-sections";
+import { hiddenKeys, loadEntity, pickOptions, readSectionForEdit, sectionCards } from "@/lib/server/entity-sections";
 import { mediaOptions } from "@/lib/server/services-admin";
 import SectionEditor from "./SectionEditor";
+import SectionSwitch from "./SectionSwitch";
 
 /*
  * The two screens of a record that has sections (a service, a case study, an article): the overview with one card per section in the order of the
@@ -40,7 +41,7 @@ export async function EntityOverview({ kind, id }: { kind: EntityKind; id: strin
       </div>
 
       <h2 className="cards-title">Sections, in the order they appear on the page</h2>
-      <p className="hint">The order and the design are fixed. Open a section to change its words, pictures and links.{cards.some((c) => c.toggle) ? " Sections with a switch can be hidden without losing their content." : ""} The slug, the status and deleting are under <Link href={`${base}/edit`}>Basics and publishing</Link>.</p>
+      <p className="hint">The order and the design are fixed. Open a section to change its words, pictures and links.{cards.some((c) => c.switchable) ? " Every section with a switch can be hidden without losing its content; important ones ask you to confirm first." : ""} The slug, the status and deleting are under <Link href={`${base}/edit`}>Basics and publishing</Link>.</p>
       <ol className="section-cards">
         {cards.map((s, i) => (
           <li className={s.enabled ? "section-card" : "section-card is-off"} key={s.key}>
@@ -55,17 +56,10 @@ export async function EntityOverview({ kind, id }: { kind: EntityKind; id: strin
               <p className="sc-when">{s.lastSaved ? `Last changed: ${when(s.lastSaved)}` : "Not changed since it was created"}</p>
             </div>
             <div className="sc-side">
-              {s.toggle ? (
-                <form action={setEntitySectionVisibility} className="sc-switch">
-                  <input type="hidden" name="kind" value={kind} />
-                  <input type="hidden" name="id" value={rec.id} />
-                  <input type="hidden" name="key" value={s.key} />
-                  <input type="hidden" name="enabled" value={s.enabled ? "0" : "1"} />
-                  <button type="submit" className="switch" role="switch" aria-checked={s.enabled} aria-label={`${s.name}: ${s.enabled ? "shown on the website, click to hide" : "hidden, click to show"}`}><span aria-hidden="true" /></button>
-                  <span className={s.enabled ? "badge published" : "badge draft"}>{s.enabled ? "Enabled" : "Disabled"}</span>
-                </form>
+              {s.switchable ? (
+                <SectionSwitch action={setEntitySectionVisibility} fields={{ kind, id: rec.id, key: s.key }} enabled={s.enabled} name={s.name} {...(s.confirm ? { confirm: s.confirm } : {})} />
               ) : (
-                <span className="sc-always" title="The page is built around this section."><span className="badge published">Enabled</span> <small>always</small></span>
+                <span className="sc-always" title={s.lock ?? "Always shown."}><span className="badge published">Enabled</span> <small>always</small></span>
               )}
               <Link className="btn primary" href={`${base}/${s.key}`}>Edit</Link>
             </div>
@@ -86,7 +80,7 @@ export async function EntitySectionScreen({ kind, id, sectionKey }: { kind: Enti
   const route = info.route(rec.input.slug);
   const json = JSON.stringify(fields);
   const [media, options] = await Promise.all([json.includes('"kind":"media"') || json.includes('"kind":"blocks"') ? mediaOptions() : [], pickOptions(kind, rec.id, fields)]);
-  const hidden = section.toggle ? !section.toggle.read(rec.input) : false;
+  const hidden = section.lock ? false : section.toggle ? !section.toggle.read(rec.input) : (await hiddenKeys(kind, rec.id)).has(section.key);
 
   return (
     <>

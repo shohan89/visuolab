@@ -3,7 +3,7 @@ import { notFound, permanentRedirect } from "next/navigation";
 import CaseStudyPage from "@/components/site/case/CaseStudyPage";
 import JsonLd from "@/components/site/JsonLd";
 import { getAdmin } from "@/lib/server/auth";
-import { getCaseStudyBySlug, getSlugRedirect } from "@/lib/server/cms";
+import { getCaseStudyBySlug, getHiddenSections, getSlugRedirect } from "@/lib/server/cms";
 import { getDb } from "@/lib/server/db";
 import { getPage } from "@/lib/server/cms-pages";
 import { caseStudySeo } from "@/lib/server/seo";
@@ -37,11 +37,11 @@ export default async function CaseStudyRoute({ params }: Props) {
   const { study, redirectTo, preview } = await load((await params).slug);
   if (redirectTo) permanentRedirect(`/works/${redirectTo}`);
   if (!study) notFound();
-  const [seo, { content }] = await Promise.all([caseStudySeo(study, !!preview), getPage("case_study_detail")]);
+  const [seo, { content }, hidden] = await Promise.all([caseStudySeo(study, !!preview), getPage("case_study_detail"), getHiddenSections(getDb(), "case_study", study.slug)]);
   return (
     <>
       <JsonLd nodes={seo.jsonLd} />
-      <CaseStudyPage study={study} chrome={content.chrome} />
+      <CaseStudyPage study={study} chrome={content.chrome} hidden={hidden} />
     </>
   );
 }

@@ -15,7 +15,8 @@ import Img from "@/components/site/ui/Img";
  * An article page. Every article shares one layout, so one component renders any BlogPost (markup follows blog/*.html).
  * Text goes through InlineText and the block switch below: React elements only, never injected HTML. `related` are live articles.
  */
-export default function BlogArticle({ post: p, related, url, chrome }: { post: BlogPost; related: BlogPost[]; url: string; chrome: ArticleChromeSection }) {
+export default function BlogArticle({ post: p, related, url, chrome, hidden = [] }: { post: BlogPost; related: BlogPost[]; url: string; chrome: ArticleChromeSection; /** keys of the sections an editor switched off */ hidden?: readonly string[] }) {
+  const off = new Set(hidden);
   const headings = p.body.filter((b): b is Extract<BlogBlock, { type: "heading" }> => b.type === "heading");
   const toc: TocItem[] = headings.map((b, i) => ({ id: headingId(b.text, i), text: b.text }));
   // position of each heading among the headings (its table-of-contents entry), or -1 for paragraphs
@@ -24,6 +25,7 @@ export default function BlogArticle({ post: p, related, url, chrome }: { post: B
   return (
     <>
       <article className="post-page light" id="top" data-light-offset="450">
+        {!off.has("header") && (
         <div className="post-hero">
           <div className="wrap post-head">
             <p className="crumbs reveal"><Link href="/blog">{chrome.breadcrumbRoot}</Link><span>/</span><span>{p.category}</span></p>
@@ -36,13 +38,14 @@ export default function BlogArticle({ post: p, related, url, chrome }: { post: B
             </div>
           </div>
         </div>
-        <div className="wrap"><figure className="post-cover reveal"><Img sizes="(max-width: 900px) 100vw, 1300px" src={p.cover.src} alt={p.cover.alt} fetchPriority="high" /></figure></div>
+        )}
+        {!off.has("cover") && <div className="wrap"><figure className="post-cover reveal"><Img sizes="(max-width: 900px) 100vw, 1300px" src={p.cover.src} alt={p.cover.alt} fetchPriority="high" /></figure></div>}
         <div className="wrap">
           <div className="article-grid">
-            <ArticleToc items={toc} label={chrome.tocLabel} />
+            <ArticleToc items={off.has("body") ? [] : toc} label={chrome.tocLabel} />
             <div className="prose reveal">
-              <p className="post-lead"><InlineText>{p.lead}</InlineText></p>
-              {p.body.map((b, i) => {
+              {!off.has("intro") && <p className="post-lead"><InlineText>{p.lead}</InlineText></p>}
+              {(off.has("body") ? [] : p.body).map((b, i) => {
                 switch (b.type) {
                   case "heading": return <h2 id={toc[tocIndex[i] ?? 0]?.id} key={i}>{b.text}</h2>;
                   case "subheading": return <h3 key={i}>{b.text}</h3>;
@@ -56,14 +59,17 @@ export default function BlogArticle({ post: p, related, url, chrome }: { post: B
                   case "divider": return <hr className="post-divider" key={i} />;
                 }
               })}
+              {!off.has("closing-line") && <>
               <hr />
               <p className="outro">{p.outro.before} <a href={p.outro.href}>{p.outro.linkText}</a>{p.outro.after}</p>
+              </>}
             </div>
             <ShareRail url={url} title={p.meta.title} label={chrome.shareLabel} />
           </div>
         </div>
       </article>
 
+      {!off.has("more-from-the-studio") && (
       <section className="sec more-sec light" aria-labelledby="more-title">
         <div className="wrap">
           <div className="more-head">
@@ -81,6 +87,7 @@ export default function BlogArticle({ post: p, related, url, chrome }: { post: B
           </div>
         </div>
       </section>
+      )}
     </>
   );
 }

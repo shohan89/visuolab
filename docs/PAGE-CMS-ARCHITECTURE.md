@@ -79,7 +79,7 @@ Table `page_sections`. One row per section of a page.
 | `section_key` | text | The section's name on its page (`hero`, `faq`, ...). With `page_id` it is unique and is how code and the admin address the section. Lowercase, digits, `_`. |
 | `section_type` | text, FK `page_section_types` | Which schema the content follows. |
 | `position` | integer ≥ 0 | Where the section sits on the page. Set from the template; editors do not change it. |
-| `is_enabled` | 0/1 | Switches the section off without deleting its content. Only sections the registry marks `canDisable` may be switched off (the others own anchors other pages link to, or the page is meaningless without them). |
+| `is_enabled` | 0/1 | Switches the section off without deleting its content. Every block drawn on a public page may be switched off (`canDisable`); copy that is not a block of its own (page labels, shared lists, the footer extras) may not, and says why. Important sections ask for confirmation first (section 11d). |
 | `content` | text, JSON object | The section's content. `CHECK (json_valid(content) AND json_type(content) = 'object')`. Always validated against the schema of `section_type` before it is written. |
 | `schema_version` | integer | The version of the type's schema the content was written with (for future migrations of content). |
 | `created_at`, `updated_at`, `updated_by` | | |
@@ -299,7 +299,7 @@ Detail pages keep the SEO fields they already have on their own records (`servic
    - media ids become URLs, sizes and responsive variants through the existing image helpers;
    - `{email}` is replaced with the contact e-mail from Settings; an empty CTA link falls back to `mailto:` of that e-mail;
    - a list the layout needs repeated (the mosaic marquee, the logo marquee) is repeated by the renderer, not by the editor.
-5. **Disabled sections.** A disabled section is not rendered. Links that point to its anchor would dangle, which is why only sections whose anchors nothing else uses are marked `canDisable`; the admin shows which links point to a section's anchor before it is switched off.
+5. **Disabled sections.** A disabled section is not rendered. Links that point to its anchor would dangle, which is why a section that owns an anchor linked from elsewhere (Careers, Services, Our cases, Form, the closing call to action) is an important section: the editor must confirm, and the dialog says what will point at nothing.
 6. **Freshness.** Saving a section writes an audit entry; the existing audit hook bumps `app_meta.content_version`, which refreshes cached pages on the next visit.
 
 Switching a public page to read from here is done page by page, behind byte-for-byte comparison of the rendered markup against today's output (the method used for the Navigation change).
@@ -385,9 +385,26 @@ The sections were taken from the components above, not invented: every block of 
 
 **Previous versions.** `entity_section_revisions` (migration `0019`) keeps the content a save replaced, per record and section, the last 10. They appear on the section's screen ("Load into the editor", then Save). A trigger on each of the three record tables removes a deleted record's versions.
 
-**Hiding a section.** Only the two service sections that already had a flag (`show_problems`, `show_band`) can be hidden; the switch checks the whole record, so a section whose required fields are empty cannot be switched on. The other sections are the skeleton of their page and are always on.
+**Hiding a section.** Every block of the page can be hidden (section 11d). The two service sections that already had a flag (`show_problems`, `show_band`) keep using it, and their switch checks the whole record, so a section whose required fields are empty cannot be switched on.
 
 **Verification.** `npm run db:verify:entities` (57 checks) runs the real seeded records through every section: each section's content passes its schema, putting it back changes nothing, the record still passes the full schema, and the form built from the schema fits the content exactly. `scripts/qa/entities-admin-qa.mjs` (78 checks) does the same in a browser against a service, a case study and an article.
+
+## 11d. Section visibility (Enabled / Disabled)
+
+Every block that is drawn on a public page can be switched off and on again from the admin. Switching a section off **never deletes anything**: its content stays stored and the admin can switch it on again at any time. When a section is on, the page is drawn exactly as before (the page parity diff covers this: all 23 pages identical).
+
+**Where the switch is stored**
+
+| Pages | Where | Rendering |
+|---|---|---|
+| Home, About, Works, Blog, Contact, the service-page extras, Shared | `page_sections.is_enabled`, one row per section, as before | `loadPage()` returns `enabled[key]`; the page route leaves the block out. The components that draw several sections together (`HomeIntroRun`, `HomeWorkRun`, `AboutHeroRun`, `AboutFaqRun`, `WorksPage`, `BlogListing`, `ContactSection`) take `null` for a section that is off. The closing call to action is switched off for the whole site through the shared content (`ctaEnabled`). |
+| Service, case study, article | `entity_hidden_sections` (migration `0020`): one row per hidden section (`entity_type`, `entity_id`, `section_key`); no row means on. The record itself is not touched. The two service sections that already had a flag (`show_problems`, `show_band`) keep using it. | The page route reads the hidden keys by slug (`getHiddenSections`) and passes them to `ServicePage`, `CaseStudyPage` or `BlogArticle`, which leave the block out. A trigger on each record table removes a deleted record's rows. |
+
+**What can be switched off.** All blocks of a public page: 29 sections of the static pages and the shared closing band; on a service all sections except the search settings; on a case study the ten blocks of the page (Hero, Project details, Introduction, First gallery, Approach, Second gallery, Challenge, Wide image, Results, Related work); on an article six blocks (Headline and byline, Cover picture, Opening paragraph, Article body, Closing line, More from the studio). What cannot be switched off is not a block of a page, and the admin says why on the card: the page-label sets, the shared lists (reviews, logos, the rating line) that other sections draw from, the footer extras (the legal links and the copyright line stay on every page), and, on the records, the cards that feed other lists (the card on Works, the card on service pages and Home, the service links), the listing card of an article and the search settings (they go into the page head and are not drawn on the page). To keep a case study or article off the lists, unpublish it under Basics and publishing.
+
+**Confirmation.** Important sections carry a `confirm` text in the registry that says what visitors lose, for example the page headings ("the page's `<h1>`"), the services and cases blocks of Home, Careers (the header and footer link to `#careers`), the case study grid, the article list, the contact form, the closing call to action, and on the records the hero or header and the article body. Switching one off opens a dialog with that text and "Nothing is deleted"; "Keep it on" changes nothing; "Switch off" submits with `confirm=1`. **The server enforces it**: a request to switch off an important section without `confirm=1` is refused and the section stays on. Switching on never asks. Ordinary sections switch off without a question.
+
+**Audit.** Every switch is an audit entry (`cms.section.toggle`, `<kind>.section.toggle`) naming the section and "hidden" or "shown", and bumps the content version like every other change. Verification: `db:verify:pages` (every block switched off and on on a seeded database; its row and content unchanged; the locked ones refuse), `db:verify:entities` (which sections are locked or important; migration `0020`), and `scripts/qa/visibility-qa.mjs` in a browser.
 
 ## 12. Validation strategy
 
@@ -407,7 +424,7 @@ Coupled lists: the contact form's option lists live only in `contact_form` conte
 Decisions made here, where the audit left a choice:
 
 - **CTA band avatars: exactly 3**, floating pictures exactly 4 (the shared-chrome audit says the layout fixes 3 and 4; the Home audit said 2–4).
-- **Careers cannot be disabled** (the header/footer link to `#careers`); the FAQ and the others without anchors elsewhere can.
+- **Careers can be disabled, after a confirmation** (the header/footer link to `#careers` and would point at nothing); the same holds for every section that owns an anchor linked from elsewhere.
 - **Home "Services" links** have an `href` per link (default `#contact`, as today); linking them to service pages is an editor choice, not a code change.
 - **Per-case Home panels** (tags, quote, reviewer) stay on the case study ("showcase"); the Home section chooses which cases and in what order.
 - **Flags** are a fixed list drawn in code (`PT` `CA` `SG` `AU`); a new office country needs its flag drawn and added.

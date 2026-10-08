@@ -65,7 +65,7 @@ try {
   check("a page shows a card for each of its 9 sections in their public order, with the section's name", cardNames.join("|") === "Hero|Trusted by|Showreel|Why us and numbers|Services|Our cases|Industries|How we work|Reviews", cardNames.join("|"));
   const c0 = (await cards.nth(0).innerText()).replace(/\s+/g, " "), c1 = (await cards.nth(1).innerText()).replace(/\s+/g, " ");
   check("each card shows the section type, its enabled status, when it was last updated and an Edit button", c1.includes("Trusted-by logos band") && /Enabled/.test(c1) && /Last updated: \d/.test(c1) && (await cards.nth(1).getByRole("link", { name: "Edit" }).count()) === 1 && c0.includes("Home hero"));
-  check("sections that must stay have no switch; the others have one", (await cards.nth(0).locator("button[role=switch]").count()) === 0 && (await cards.nth(1).locator("button[role=switch]").count()) === 1);
+  check("every block has a switch (the important Hero asks for confirmation, see visibility-qa)", (await cards.nth(0).locator("button[role=switch]").count()) === 1 && (await cards.nth(1).locator("button[role=switch]").count()) === 1);
   await cards.nth(1).locator("button[role=switch]").click(); // the logos band
   await page.waitForTimeout(2000);
   check("switching a section off shows it as disabled and removes it from the website, keeping its content", (await page.locator("ol.section-cards li").nth(1).innerText()).includes("Disabled") && (await page.locator("ol.section-cards li").nth(1).locator("button[role=switch]").getAttribute("aria-checked")) === "false" && !has(await html("/"), 'class="intro-band"') && content("sec_home_logos").label === "Trusted by");

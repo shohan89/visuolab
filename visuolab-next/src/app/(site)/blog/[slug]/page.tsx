@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound, permanentRedirect } from "next/navigation";
 import BlogArticle from "@/components/site/blog/BlogArticle";
 import { getAdmin } from "@/lib/server/auth";
-import { getBlogPostBySlug, getSlugRedirect } from "@/lib/server/cms";
+import { getBlogPostBySlug, getHiddenSections, getSlugRedirect } from "@/lib/server/cms";
 import { getDb } from "@/lib/server/db";
 import { getPage } from "@/lib/server/cms-pages";
 import JsonLd from "@/components/site/JsonLd";
@@ -40,11 +40,11 @@ export default async function BlogPostRoute({ params }: Props) {
   if ("redirectTo" in found && found.redirectTo) permanentRedirect(`/blog/${found.redirectTo}`);
   if (!("post" in found) || !found.post) notFound();
   const { post, related } = found;
-  const [siteUrl, seo, { content }] = await Promise.all([getSiteUrl(), blogPostSeo(post, found.preview), getPage("article_detail")]);
+  const [siteUrl, seo, { content }, hidden] = await Promise.all([getSiteUrl(), blogPostSeo(post, found.preview), getPage("article_detail"), getHiddenSections(getDb(), "blog_post", post.slug)]);
   return (
     <>
       <JsonLd nodes={seo.jsonLd} />
-      <BlogArticle post={post} related={related} url={`${siteUrl}/blog/${post.slug}`} chrome={content.chrome} />
+      <BlogArticle post={post} related={related} url={`${siteUrl}/blog/${post.slug}`} chrome={content.chrome} hidden={hidden} />
     </>
   );
 }

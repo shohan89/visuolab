@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "@/components/site/ui/Link";
 import { setSectionVisibility } from "@/actions/cms-pages";
+import SectionSwitch from "@/components/admin/SectionSwitch";
 import { TEMPLATES, templateFromParam, templateSlug } from "@/lib/cms/registry";
 import { requireAdmin } from "@/lib/server/auth";
 import { adminSections } from "@/lib/server/cms-admin";
@@ -33,7 +34,7 @@ export default async function PageAdmin({ params }: { params: Promise<{ page: st
       {!page && <p className="form-errors" role="status"><b>This page has no content in the database yet.</b> The website shows its built-in text. Run <code>npm run db:seed:pages:remote</code>, then edit it here.</p>}
 
       <h2 className="cards-title">Sections, in the order they appear on the page</h2>
-      <p className="hint">The order and the design are fixed. Open a section to change its words, pictures and links.{sections.some((s) => s.canDisable) ? " Sections with a switch can be hidden without losing their content." : ""}</p>
+      <p className="hint">The order and the design are fixed. Open a section to change its words, pictures and links.{sections.some((s) => s.canDisable) ? " Every section with a switch can be hidden without losing its content; important ones ask you to confirm first." : ""}</p>
       <ol className="section-cards">
         {sections.map((s, i) => (
           <li className={s.enabled ? "section-card" : "section-card is-off"} key={s.key}>
@@ -50,16 +51,10 @@ export default async function PageAdmin({ params }: { params: Promise<{ page: st
             <div className="sc-side">
               {s.canDisable ? (
                 s.updatedAt ? (
-                  <form action={setSectionVisibility} className="sc-switch">
-                    <input type="hidden" name="template" value={template} />
-                    <input type="hidden" name="key" value={s.key} />
-                    <input type="hidden" name="enabled" value={s.enabled ? "0" : "1"} />
-                    <button type="submit" className="switch" role="switch" aria-checked={s.enabled} aria-label={`${s.name}: ${s.enabled ? "shown on the website, click to hide" : "hidden, click to show"}`}><span aria-hidden="true" /></button>
-                    <span className={s.enabled ? "badge published" : "badge draft"}>{s.enabled ? "Enabled" : "Disabled"}</span>
-                  </form>
+                  <SectionSwitch action={setSectionVisibility} fields={{ template, key: s.key }} enabled={s.enabled} name={s.name} {...(s.confirm ? { confirm: s.confirm } : {})} />
                 ) : <span className="badge">Not in the database</span>
               ) : (
-                <span className="sc-always" title="Other pages link to this section, or the page needs it."><span className="badge published">Enabled</span> <small>always</small></span>
+                <span className="sc-always" title={s.lock ?? "Always shown."}><span className="badge published">Enabled</span> <small>always</small></span>
               )}
               <Link className="btn primary" href={`${base}/${s.key}`}>Edit</Link>
             </div>

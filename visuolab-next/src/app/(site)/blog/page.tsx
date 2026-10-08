@@ -23,11 +23,11 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function BlogRoute() {
-  const [{ posts, topics, seo }, { content }] = await Promise.all([load(), getPage("blog")]);
+  const [{ posts, topics, seo }, { content, enabled }] = await Promise.all([load(), getPage("blog")]);
   return (
     <>
       <JsonLd nodes={seo.jsonLd} />
-      <BlogListing posts={posts} topics={topics} hero={content.hero} featuredContent={content.featured} grid={content.grid} />
+      <BlogListing posts={posts} topics={topics} hero={enabled.hero ? content.hero : null} featuredContent={enabled.featured ? content.featured : null} grid={enabled.grid ? content.grid : null} />
     </>
   );
 }

@@ -72,7 +72,7 @@ try {
   const caseCards = await cardNames();
   check("case study overview: one card per section, in the order of the public page", caseCards.join("|") === "Hero|Project details|Introduction|First gallery|Approach|Second gallery|Challenge|Wide image|Results|Related work|Card on the Works page|Card on service pages and Home|Shown on service pages|Search engines (SEO)", caseCards.join("|"));
   const c0 = (await page.locator("ol.section-cards li").nth(3).innerText()).replace(/\s+/g, " ");
-  check("each card shows its type, what it is for, when it was last changed and an Edit button; none can be switched off", c0.includes("Image gallery") && /Pictures of the project/.test(c0) && /Not changed since it was created/.test(c0) && (await page.locator("ol.section-cards li button[role=switch]").count()) === 0 && (await page.locator("ol.section-cards li").getByRole("link", { name: "Edit" }).count()) === 14);
+  check("each card shows its type, what it is for, when it was last changed and an Edit button; the ten blocks of the page have a switch, the cards and the search settings do not", c0.includes("Image gallery") && /Pictures of the project/.test(c0) && /Not changed since it was created/.test(c0) && (await page.locator("ol.section-cards li button[role=switch]").count()) === 10 && (await page.locator("ol.section-cards li").getByRole("link", { name: "Edit" }).count()) === 14);
   check("the header names the case study, has its status, Basics and publishing, and View page", (await page.locator("h1").innerText()).includes("Orbit") && (await page.getByRole("link", { name: "Basics and publishing" }).first().getAttribute("href")) === `/admin/case-studies/${CASE}/edit` && (await page.getByRole("link", { name: /View page/ }).getAttribute("href")) === "/works/orbit");
   await go(`/admin/case-studies/${CASE}/edit`);
   check("the full form is still there, and links back to the sections", (await page.getByRole("link", { name: "Edit by section" }).getAttribute("href")) === `/admin/case-studies/${CASE}` && (await page.locator("form.svc-form").count()) >= 1);
@@ -200,7 +200,7 @@ try {
   await go(`/admin/services/${SVC}`);
   const svcCards = await cardNames();
   check("service overview: one card per section in the order of the page", svcCards.join("|") === "Hero|What we fix|Overview|Outcomes|Call to action band|What is included|Process|Case studies|Search engines (SEO)", svcCards.join("|"));
-  check("the two sections the design can hide have a switch; the others do not", (await page.locator("ol.section-cards li button[role=switch]").count()) === 2 && (await page.locator("ol.section-cards li").nth(1).innerText()).includes("Disabled") && (await page.locator("ol.section-cards li").nth(0).locator("button[role=switch]").count()) === 0);
+  check("every section of a service page has a switch except the search settings; 'What we fix' starts disabled", (await page.locator("ol.section-cards li button[role=switch]").count()) === 8 && (await page.locator("ol.section-cards li").nth(1).innerText()).includes("Disabled") && (await page.locator("ol.section-cards li").nth(8).locator("button[role=switch]").count()) === 0);
   const beforeSvc = svcRow();
   await go(`/admin/services/${SVC}/hero`);
   await L("Intro text").fill("ADMIN intro text of the service.");

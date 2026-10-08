@@ -389,3 +389,9 @@ dialog.picker::backdrop{background:rgba(20,21,26,.55)}
 @media(max-width:600px){.share-card{grid-template-columns:1fr}}
 /* ---- sections of services, case studies and articles ---- */
 .section-card .sc-about{margin:4px 0 0;font-size:13px;color:var(--a-muted);max-width:60ch}
+/* ---- confirmation before a section is switched off ---- */
+.confirm-dialog{border:1px solid var(--a-line);border-radius:12px;padding:22px 24px;max-width:min(480px,calc(100vw - 32px));background:var(--a-card,#fff);color:inherit;box-shadow:0 20px 60px rgba(0,0,0,.25)}
+.confirm-dialog::backdrop{background:rgba(0,0,0,.45)}
+.confirm-dialog h2{margin:0 0 10px;font-size:18px}
+.confirm-dialog p{margin:0 0 10px}
+.confirm-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap}

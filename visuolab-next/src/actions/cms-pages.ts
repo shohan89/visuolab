@@ -6,7 +6,7 @@ import { audit } from "@/lib/server/audit";
 import { requireAdmin } from "@/lib/server/auth";
 import { getDb } from "@/lib/server/db";
 import { ipHash, requestHeaders, strictSameOrigin } from "@/lib/server/request";
-import { TEMPLATES, templateSlug, type SectionErrors } from "@/lib/cms/registry";
+import { TEMPLATES, slotOf, templateSlug, type SectionErrors } from "@/lib/cms/registry";
 import { savePageSeo, saveSectionContent, setSectionEnabled } from "@/lib/cms/store";
 import type { PageTemplate } from "@/lib/cms/types";
 
@@ -79,6 +79,9 @@ export async function setSectionVisibility(f: FormData): Promise<void> {
   const key = text(f, "key");
   const enabled = text(f, "enabled") === "1";
   const back = `/admin/pages/${templateSlug(template)}`;
+  const slot = slotOf(template, key);
+  // an important section is only switched off when the editor confirmed (the screen asks; this is the check that counts)
+  if (!enabled && slot?.confirm && text(f, "confirm") !== "1") redirect(`${back}?n=section_confirm`);
   const res = await setSectionEnabled(getDb(), template, key, enabled, admin.id);
   if (!res.ok) redirect(`${back}?n=${res.kind === "locked" ? "section_locked" : "failed"}`);
   await audit({

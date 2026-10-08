@@ -50,7 +50,7 @@ Pages that are already "CMS-driven" (services, case studies, blog) are edited as
 7. **Duplicated lists to unify.** The discipline list exists in WorksPage, the validation enum and the form; the contact `NEEDS` / `BUDGETS` option lists exist in `src/content/contact.ts` and in the Zod schema.
 8. **Data drift in the live database** (not a schema issue, but to fix before the CMS goes live): Orbit gallery A holds 3 images where 2 are designed; Kite shows only 1 "More work" card where 3 are designed; Home case image alt text says "placeholder from Dribbble".
 9. **Unverified:** whether the Article JSON-LD headline strips `<em>`; to check when blog SEO is touched.
-10. **Anchors that must survive any edit** (used by footer, header and CTAs): `#top`, `#contact`, `#work`, `#process`, `#reviews`, `#services`, `#careers`. A section that owns one of them cannot be hidden without breaking links.
+10. **Anchors that must survive any edit** (used by footer, header and CTAs): `#top`, `#contact`, `#work`, `#process`, `#reviews`, `#services`, `#careers`. A section that owns one of them can be hidden only after a confirmation, because links to it would point at nothing.
 
 ## Design rules for the section schemas (proposed, to confirm before implementation)
 

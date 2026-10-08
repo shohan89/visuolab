@@ -41,7 +41,7 @@ for (const f of migrations) {
   db.exec(readFileSync(join(ROOT, "migrations", f), "utf8"));
 }
 db.exec(readFileSync(join(ROOT, "db", "seed", "content.sql"), "utf8"));
-check(`${migrations.length} migrations apply in order (0019 last), then the content seed`, migrations.at(-1).startsWith("0019"));
+check(`${migrations.length} migrations apply in order (0020 last), then the content seed`, migrations.at(-1).startsWith("0020"));
 
 // ---- the real records -------------------------------------------------------------------------------------------------------------
 const services = rows("SELECT * FROM services ORDER BY position").map((r) => ({ id: r.id, input: rowToServiceInput(r, rows("SELECT case_study_id FROM service_case_studies WHERE service_id = ? ORDER BY position", r.id).map((l) => l.case_study_id)) }));
@@ -211,6 +211,29 @@ for (const { kind, sections, records, schema } of KINDS) {
   db.exec(`DELETE FROM case_studies WHERE id = '${cid}'`);
   db.exec(`DELETE FROM blog_posts WHERE id = '${pid}'`);
   check("the same for a case study and an article", rows("SELECT COUNT(*) c FROM entity_section_revisions").at(0).c === 0);
+}
+
+// ---- switching sections off: which can be, which ask first, and migration 0020 ------------------------------------------------------------
+{
+  const locked = (list) => list.filter((s) => s.lock).map((s) => s.key).join();
+  const asks = (list) => list.filter((s) => s.confirm).map((s) => s.key).join();
+  check("service: every section is a block of the page and can be switched off, except the search settings; the hero asks first", locked(SERVICE_SECTIONS) === "seo" && asks(SERVICE_SECTIONS) === "hero");
+  check("case study: the ten blocks of the page can be switched off (the hero asks first); the cards, the service links and the search settings are not blocks of the page", locked(CASE_STUDY_SECTIONS) === "works-card,showcase,services,seo" && asks(CASE_STUDY_SECTIONS) === "hero");
+  check("article: the six blocks of the page can be switched off (the header and the body ask first); the listing card and the search settings are not blocks", locked(BLOG_SECTIONS) === "listing,seo" && asks(BLOG_SECTIONS) === "header,body");
+  check("what a locked section says is a reason, and what an important one says is what visitors lose", [...SERVICE_SECTIONS, ...CASE_STUDY_SECTIONS, ...BLOG_SECTIONS].every((s) => (!s.lock || s.lock.length > 40) && (!s.confirm || s.confirm.length > 40) && !(s.lock && s.confirm)));
+
+  const sid = rows("SELECT id FROM services LIMIT 1")[0].id, cid = rows("SELECT id FROM case_studies LIMIT 1")[0].id;
+  const T = "'2026-10-08T00:00:00.000Z'";
+  const hide = (type, id, key) => `INSERT INTO entity_hidden_sections (entity_type, entity_id, section_key, hidden_at) VALUES ('${type}', '${id}', '${key}', ${T})`;
+  db.exec(hide("service", sid, "overview")); db.exec(hide("case_study", cid, "results"));
+  check("a hidden section is one row; the record itself is not touched", rows("SELECT COUNT(*) c FROM entity_hidden_sections").at(0).c === 2);
+  rejects("a section can be hidden only once", hide("service", sid, "overview"), /UNIQUE|PRIMARY/);
+  rejects("an unknown kind of record is refused", hide("page", sid, "x"), /CHECK/);
+  rejects("an empty section key is refused", hide("service", sid, ""), /CHECK/);
+  db.exec(`DELETE FROM services WHERE id = '${sid}'`);
+  check("deleting a service forgets its switches, and only its own", rows("SELECT COUNT(*) c FROM entity_hidden_sections WHERE entity_id = ?", sid).at(0).c === 0 && rows("SELECT COUNT(*) c FROM entity_hidden_sections WHERE entity_id = ?", cid).at(0).c === 1);
+  db.exec(`DELETE FROM case_studies WHERE id = '${cid}'`);
+  check("the same for a case study", rows("SELECT COUNT(*) c FROM entity_hidden_sections").at(0).c === 0);
 }
 
 console.log(`\n${pass}/${pass + fail} checks passed`);

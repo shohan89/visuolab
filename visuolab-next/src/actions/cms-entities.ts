@@ -65,7 +65,10 @@ export async function saveEntitySectionAction(_prev: CmsFormState, f: FormData):
   return { ok: true, updatedAt: res.updatedAt, nonce: nonce() };
 }
 
-/** Shows or hides a section the design can hide: fields `kind`, `id`, `key`, `enabled` ("1" or "0"). Goes back to the record's screen with a message. */
+/**
+ * Shows or hides a section: fields `kind`, `id`, `key`, `enabled` ("1" or "0") and, for important sections, `confirm` ("1"). The section's content is
+ * never touched. Goes back to the record's screen with a message.
+ */
 export async function setEntitySectionVisibility(f: FormData): Promise<void> {
   const { admin, h } = await guard();
   const kind = text(f, "kind");
@@ -75,13 +78,15 @@ export async function setEntitySectionVisibility(f: FormData): Promise<void> {
   const info = ENTITIES[kind];
   const back = `${info.admin}/${id}`;
   const enabled = text(f, "enabled") === "1";
-  const res = await setEntitySectionEnabled(kind, id, key, enabled);
-  if (!res.ok) redirect(`${back}?n=${res.kind === "locked" ? "section_locked" : res.kind === "invalid" ? "section_incomplete" : "failed"}`);
-  const rec = await loadEntity(kind, id);
-  await audit({
-    action: `${info.auditType}.section.toggle`, userId: admin.id, userEmail: admin.email, entityType: info.auditType, entityId: id,
-    summary: `${rec?.input.slug ?? id} / ${entitySection(kind, key)?.name ?? key}: ${enabled ? "shown" : "hidden"}`, ipHash: await ipHash(h),
-  });
-  refreshPublic(kind, rec?.input.slug ?? null);
+  const res = await setEntitySectionEnabled({ kind, id, key, on: enabled, confirmed: text(f, "confirm") === "1", userId: admin.id });
+  if (!res.ok) redirect(`${back}?n=${res.kind === "locked" ? "section_locked" : res.kind === "confirm" ? "section_confirm" : res.kind === "invalid" ? "section_incomplete" : "failed"}`);
+  if (res.changed) {
+    const rec = await loadEntity(kind, id);
+    await audit({
+      action: `${info.auditType}.section.toggle`, userId: admin.id, userEmail: admin.email, entityType: info.auditType, entityId: id,
+      summary: `${rec?.input.slug ?? id} / ${entitySection(kind, key)?.name ?? key}: ${enabled ? "shown" : "hidden"}`, ipHash: await ipHash(h),
+    });
+    refreshPublic(kind, rec?.input.slug ?? null);
+  }
   redirect(`${back}?n=${enabled ? "section_shown" : "section_hidden"}`);
 }

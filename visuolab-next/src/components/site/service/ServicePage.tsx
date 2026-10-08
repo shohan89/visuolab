@@ -29,12 +29,14 @@ export type ServiceChrome = {
  * Markup, class names and the --i stagger indexes follow service/*.html. The original put "svc-page" on <body>;
  * the shared layout owns <body>, so the same class sits on this wrapper (its rules are all descendant selectors).
  */
-export default function ServicePage({ service: s, chrome }: { service: ServiceSeed; chrome: ServiceChrome }) {
+export default function ServicePage({ service: s, chrome, hidden = [] }: { service: ServiceSeed; chrome: ServiceChrome; /** keys of the sections an editor switched off */ hidden?: readonly string[] }) {
+  const off = new Set(hidden);
   return (
     <div className="svc-page">
       <div className="svc-run hero-run has-aurora">
         <Aurora />
 
+        {!off.has("hero") && (
         <section className="svc-hero" id="top" aria-labelledby="svc-title">
           <div className="wrap">
             <div className="svc-lead-grid">
@@ -69,6 +71,7 @@ export default function ServicePage({ service: s, chrome }: { service: ServiceSe
             )}
           </div>
         </section>
+        )}
 
         {/* "What we fix": present in the original but hidden; the flag decides */}
         <section className="sec prob-sec" aria-labelledby="prob-title" hidden={s.problems.hidden}>
@@ -86,6 +89,7 @@ export default function ServicePage({ service: s, chrome }: { service: ServiceSe
           </div>
         </section>
 
+        {!off.has("overview") && (
         <section className="sec svc-intro" aria-labelledby="ov-title">
           <div className="wrap">
             <div className="overview">
@@ -99,8 +103,10 @@ export default function ServicePage({ service: s, chrome }: { service: ServiceSe
             </div>
           </div>
         </section>
+        )}
       </div>
 
+      {!off.has("outcomes") && (
       <section className="sec out-sec" aria-labelledby="out-title">
         <div className="wrap">
           <div className="out-head">
@@ -113,6 +119,7 @@ export default function ServicePage({ service: s, chrome }: { service: ServiceSe
           </div>
         </div>
       </section>
+      )}
 
       {/* Inline CTA band: present in the original but hidden */}
       <section className="sec band-sec" aria-label="Start a project" hidden={s.band.hidden}>
@@ -124,6 +131,7 @@ export default function ServicePage({ service: s, chrome }: { service: ServiceSe
         </div>
       </section>
 
+      {!off.has("included") && (
       <section className="sec incl-sec" aria-labelledby="incl-title">
         <div className="wrap">
           <div className="sec-grid"><p className="label reveal">{s.included.label}</p><h2 className="h2 reveal" id="incl-title" style={st({ "--i": 0 })}><Rich>{s.included.title}</Rich></h2></div>
@@ -138,7 +146,9 @@ export default function ServicePage({ service: s, chrome }: { service: ServiceSe
           </div>
         </div>
       </section>
+      )}
 
+      {!off.has("process") && (
       <section className="sec process-sec has-aurora glow-right" aria-labelledby="proc-title">
         <Aurora />
         <div className="wrap">
@@ -146,7 +156,9 @@ export default function ServicePage({ service: s, chrome }: { service: ServiceSe
           <Stairs idPrefix={`stair-${s.slug}`} steps={s.process.steps} />
         </div>
       </section>
+      )}
 
+      {!off.has("case-studies") && (
       <section className="sec svc-cases" aria-labelledby="cases-title">
         <div className="wrap">
           <div className="sec-grid cases-head">
@@ -158,6 +170,7 @@ export default function ServicePage({ service: s, chrome }: { service: ServiceSe
           </CaseStack>
         </div>
       </section>
+      )}
 
       {chrome.reviews && <ServiceReviews content={chrome.reviews.content} reviews={chrome.reviews.items} rating={chrome.rating} />}
     </div>

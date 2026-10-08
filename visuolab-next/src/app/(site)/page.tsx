@@ -21,18 +21,18 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function HomePage() {
   const seo = await fixedPageSeo("home");
   const [{ content, enabled }, media, reviews, logos, rating] = await Promise.all([getPage("home"), getMediaIndex(), getReviewSeeds(), getLogoSeeds(), getRating()]);
-  const cards = await getCaseCards(content.work.caseIds);
+  const cards = enabled.work ? await getCaseCards(content.work.caseIds) : [];
   return (
     <>
       <JsonLd nodes={seo.jsonLd} />
-      <HomeHero content={content.hero} />
+      {enabled.hero && <HomeHero content={content.hero} />}
       <HomeIntroRun
         logos={enabled.logos ? { content: content.logos, items: logos } : null}
         showreel={enabled.showreel ? { videoSrc: mediaSrc(content.showreel.video, media), posterSrc: mediaSrc(content.showreel.poster, media), tag: content.showreel.tag, time: content.showreel.time } : null}
-        why={content.why}
+        why={enabled.why ? content.why : null}
       />
-      <HomeServices content={content.services} avatarSrc={mediaSrc(content.services.bookBar.avatar, media)} />
-      <HomeWorkRun work={content.work} cards={cards} industries={enabled.industries ? content.industries : null} process={enabled.process ? content.process : null} />
+      {enabled.services && <HomeServices content={content.services} avatarSrc={mediaSrc(content.services.bookBar.avatar, media)} />}
+      <HomeWorkRun work={enabled.work ? content.work : null} cards={cards} industries={enabled.industries ? content.industries : null} process={enabled.process ? content.process : null} />
       {enabled.reviews && <HomeReviews content={content.reviews} rating={rating} reviews={reviews} />}
     </>
   );

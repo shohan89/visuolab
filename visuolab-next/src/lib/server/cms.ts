@@ -199,6 +199,13 @@ export async function getServiceBySlug(db: Db, slug: string, opts: { includeUnpu
 }
 
 /** Where an old service address now lives (set when an editor renames a slug), or null. */
+/** The keys of the sections an editor switched off on a service, case study or article (by its slug). Empty when none. */
+export async function getHiddenSections(db: Db, kind: "service" | "case_study" | "blog_post", slug: string): Promise<string[]> {
+  const table = kind === "service" ? "services" : kind === "case_study" ? "case_studies" : "blog_posts";
+  const rows = await all(db, `SELECT h.section_key FROM entity_hidden_sections h JOIN ${table} r ON r.id = h.entity_id WHERE h.entity_type = ?1 AND r.slug = ?2`, kind, slug);
+  return rows.map((r) => s(r.section_key));
+}
+
 export async function getSlugRedirect(db: Db, kind: "service" | "case_study" | "blog_post", slug: string): Promise<string | null> {
   const rows = await all(db, "SELECT new_slug FROM slug_redirects WHERE kind = ?1 AND old_slug = ?2", kind, slug);
   return rows[0] ? s(rows[0].new_slug) : null;

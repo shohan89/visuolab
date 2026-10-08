@@ -66,7 +66,7 @@ await withSection("sec_about_mosaic", (c) => ({ ...c, caseIds: ["case_fold", "ca
   check("about: the strip shows the chosen case studies, repeated to an even number of tiles (the loop slides by half)", has(h, "Fold — Banking app") && tiles % 2 === 0 && tiles >= 16, `${tiles} tiles`);
 });
 await withSection("sec_about_careers", (c) => { c.items[0].subject = "A subject & more"; return c; }, async () => check("about: the open roles' mail subject is encoded", has(await html("/about"), "subject=A%20subject%20%26%20more")));
-await withSection("sec_about_careers", (c) => c, async () => check("about: Careers cannot be switched off (the header and footer link to it): a row marked off is still drawn", has(await html("/about"), 'id="careers"')), 0);
+await withSection("sec_about_careers", (c) => c, async () => check("about: Careers can be switched off (the editor confirms first): a row marked off is not drawn", !has(await html("/about"), 'id="careers"')), 0);
 
 // ---- Works
 await withSection("sec_works_hero", (c) => ({ ...c, label: "CMS WORKS", title: "CMS <em>headline</em>", allLabel: "Everything", chipLabels: { ...c.chipLabels, web: "Websites" } }), async () => {

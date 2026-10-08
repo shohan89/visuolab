@@ -10,13 +10,15 @@ import { optRich, recordHrefOpt, recordLink } from "./common.ts";
 import { section, type EntitySection } from "./types.ts";
 
 type I = ServiceInput;
+const HERO_E = "Visitors lose the page headline, the intro text, the button and the two pictures (the page's <h1>, which search engines and screen readers rely on).";
+const LOCK_SEO = "The search settings are not drawn on the page; they go into its head (title, description, share picture), so there is nothing to hide.";
 
 /** A plain circle: what a new "included" item gets until icons can be chosen. */
 export const DEFAULT_ICON = { viewBox: "0 0 24 24", nodes: [{ t: "circle", a: { cx: "12", cy: "12", r: "8" } }] };
 
 export const SERVICE_SECTIONS: readonly EntitySection<I>[] = [
   section<I, z.ZodType<{ title: string; lead: string; cta: { label: string; href: string }; imageA: { id: string; alt: string }; imageB: { id: string; alt: string } }>>({
-    key: "hero", name: "Hero", type: "Hero with button and pictures", anchor: "top",
+    key: "hero", confirm: HERO_E, name: "Hero", type: "Hero with button and pictures", anchor: "top",
     about: "The headline, the intro text, the button and the two pictures beside them.",
     schema: z.strictObject({
       title: rich("Headline", 200),
@@ -122,7 +124,7 @@ export const SERVICE_SECTIONS: readonly EntitySection<I>[] = [
   }) as EntitySection<I>,
 
   section<I, z.ZodType<{ metaTitle: string; metaDescription: string }>>({
-    key: "seo", name: "Search engines (SEO)", type: "Search settings",
+    key: "seo", lock: LOCK_SEO, name: "Search engines (SEO)", type: "Search settings",
     about: "The title and description shown in search results and when the page is shared. Separate from the headline.",
     schema: z.strictObject({
       metaTitle: hint(text("SEO title", 70), "About 60 characters."),

@@ -10,6 +10,9 @@ import { cropPosition, mediaRefRequired } from "./common.ts";
 import { section, type EntitySection } from "./types.ts";
 
 type I = CaseStudyInput;
+const HERO_E = "Visitors lose the breadcrumb, the headline and the cover picture (the page's <h1>, which search engines and screen readers rely on).";
+const LOCK_SEO = "The search settings are not drawn on the page; they go into its head (title, description, share picture), so there is nothing to hide.";
+const LOCK_CARD = "This is a card in other lists, not a block of this page. To keep the case study off those lists, unpublish it under Basics and publishing.";
 const DISCIPLINE_LABELS = { brand: "Brand", product: "Product", web: "Web", packaging: "Packaging", motion: "Motion" } as const;
 
 const figure = group("Picture", {
@@ -40,7 +43,7 @@ function gallery(key: "galleryA" | "galleryB", sectionKey: string, name: string,
 
 export const CASE_STUDY_SECTIONS: readonly EntitySection<I>[] = [
   section<I, z.ZodType<{ title: string; cover: { id: string; alt: string } }>>({
-    key: "hero", name: "Hero", type: "Hero with cover picture", anchor: "top",
+    key: "hero", confirm: HERO_E, name: "Hero", type: "Hero with cover picture", anchor: "top",
     about: "The headline and the large cover picture under it.",
     schema: z.strictObject({ title: rich("Headline", 200), cover: mediaRefRequired("Cover picture") }),
     read: (i) => ({ title: i.title, cover: { id: i.coverImage, alt: i.coverImageAlt } }),
@@ -148,7 +151,7 @@ export const CASE_STUDY_SECTIONS: readonly EntitySection<I>[] = [
   }) as EntitySection<I>,
 
   section<I, z.ZodType<{ typeLine: string; shortKind: string; cardTags: string[]; filters: CaseStudyInput["filters"]; image: { id: string; alt: string } }>>({
-    key: "works-card", name: "Card on the Works page", type: "Project card",
+    key: "works-card", lock: LOCK_CARD, name: "Card on the Works page", type: "Project card",
     about: "How the project looks in the grid of all work: its type line, tags, filters and picture.",
     schema: z.strictObject({
       typeLine: hint(text("Type line", 80), "For example: Rebrand · Furniture"),
@@ -163,7 +166,7 @@ export const CASE_STUDY_SECTIONS: readonly EntitySection<I>[] = [
   }) as EntitySection<I>,
 
   section<I, z.ZodType<{ title: string; tags: string[]; results: { value: string; text: string }[]; quote: CaseStudyInput["showcase"]["quote"] | null }>>({
-    key: "showcase", name: "Card on service pages and Home", type: "Result or quote card",
+    key: "showcase", lock: LOCK_CARD, name: "Card on service pages and Home", type: "Result or quote card",
     about: "The smaller card shown on service pages and on Home. It shows numbers, or a client quote when the quote part is on.",
     schema: z.strictObject({
       title: rich("Card headline", 200),
@@ -193,7 +196,7 @@ export const CASE_STUDY_SECTIONS: readonly EntitySection<I>[] = [
   }) as EntitySection<I>,
 
   section<I, z.ZodType<{ serviceIds: string[] }>>({
-    key: "services", name: "Shown on service pages", type: "Service links",
+    key: "services", lock: LOCK_CARD, name: "Shown on service pages", type: "Service links",
     about: "The service pages that include this case study as a card.",
     schema: z.strictObject({ serviceIds: pick("Service", "service_ids", 0, 10, "service") }),
     read: (i) => ({ serviceIds: i.serviceIds }),
@@ -202,7 +205,7 @@ export const CASE_STUDY_SECTIONS: readonly EntitySection<I>[] = [
   }) as EntitySection<I>,
 
   section<I, z.ZodType<{ metaTitle: string; metaDescription: string }>>({
-    key: "seo", name: "Search engines (SEO)", type: "Search settings",
+    key: "seo", lock: LOCK_SEO, name: "Search engines (SEO)", type: "Search settings",
     about: "The title and description shown in search results and when the page is shared. Separate from the headline.",
     schema: z.strictObject({
       metaTitle: hint(text("SEO title", 70), "About 60 characters."),

@@ -10,12 +10,14 @@ import { inline, recordHref, spaced } from "./common.ts";
 import { section, type EntitySection } from "./types.ts";
 
 type I = BlogInput;
+const HEAD_E = "Visitors lose the headline, the category in the breadcrumb, the author, the date and the reading time (the page's <h1>, which search engines and screen readers rely on).";
+const LOCK_SEO = "The search settings are not drawn on the page; they go into its head (title, description, share picture), so there is nothing to hide.";
 type Pic = { id: string } | null;
 const pic = (id: string): Pic => (id ? { id } : null);
 
 export const BLOG_SECTIONS: readonly EntitySection<I>[] = [
   section<I, z.ZodType<{ title: string; categoryId: string; authorName: string; authorImage: Pic; publishedAt: string; readMinutes: number | null }>>({
-    key: "header", name: "Headline and byline", type: "Article header", anchor: "top",
+    key: "header", confirm: HEAD_E, name: "Headline and byline", type: "Article header", anchor: "top",
     about: "The headline, the category in the breadcrumb, the author, the date and the reading time.",
     schema: z.strictObject({
       title: text("Headline", 140),
@@ -49,7 +51,7 @@ export const BLOG_SECTIONS: readonly EntitySection<I>[] = [
   }) as EntitySection<I>,
 
   section<I, z.ZodType<{ blocks: I["blocks"] }>>({
-    key: "body", name: "Article body", type: "Block editor",
+    key: "body", confirm: "Visitors lose the article text and its table of contents: the page would show only the headline and the closing line.", name: "Article body", type: "Block editor",
     about: "The article itself, block by block: headings (they make the table of contents), paragraphs, lists, quotes, pictures and dividers.",
     schema: z.strictObject({ blocks: blocks(blockSchema, "Blocks", 1, 80) }),
     read: (i) => ({ blocks: i.blocks }),
@@ -81,7 +83,7 @@ export const BLOG_SECTIONS: readonly EntitySection<I>[] = [
   }) as EntitySection<I>,
 
   section<I, z.ZodType<{ excerpt: string; tags: string[]; featured: boolean }>>({
-    key: "listing", name: "Listing card and tags", type: "Blog listing",
+    key: "listing", lock: "This is how the article appears on the Blog page and in tags, not a block of the article itself. To keep it off the Blog page, unpublish it under Basics and publishing.", name: "Listing card and tags", type: "Blog listing",
     about: "How the article appears on the Blog page: the teaser on the featured card, its tags, and whether it is the featured article.",
     schema: z.strictObject({
       excerpt: hint(optText("Teaser", 300), "Shown on the featured card only."),
@@ -94,7 +96,7 @@ export const BLOG_SECTIONS: readonly EntitySection<I>[] = [
   }) as EntitySection<I>,
 
   section<I, z.ZodType<{ metaTitle: string; metaDescription: string; canonicalUrl: string; ogImage: Pic }>>({
-    key: "seo", name: "Search engines (SEO)", type: "Search settings",
+    key: "seo", lock: LOCK_SEO, name: "Search engines (SEO)", type: "Search settings",
     about: "The title and description shown in search results and when the article is shared. Separate from the headline.",
     schema: z.strictObject({
       metaTitle: hint(text("SEO title", 70), "About 60 characters."),

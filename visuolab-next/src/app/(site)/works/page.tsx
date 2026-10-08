@@ -25,7 +25,7 @@ export default async function WorksRoute() {
   return (
     <>
       <JsonLd nodes={s.jsonLd} />
-      <WorksPage cases={cases} hero={content.hero} grid={content.grid} reviews={enabled.reviews ? { content: content.reviews, items: reviews, rating } : null} />
+      <WorksPage cases={cases} hero={enabled.hero ? content.hero : null} grid={enabled.grid ? content.grid : null} reviews={enabled.reviews ? { content: content.reviews, items: reviews, rating } : null} />
     </>
   );
 }

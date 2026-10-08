@@ -276,10 +276,43 @@ db.exec(`INSERT INTO users (id, email, name, password_hash, role, created_at, up
   check("a section that may be hidden is hidden, its content kept", off.ok && l.enabled.logos === false && JSON.stringify(l.content.logos) === JSON.stringify(PAGE_DEFAULTS.home.logos));
   const on = await store.setSectionEnabled(d1, "home", "logos", true, "u1");
   check("and shown again", on.ok && (await store.loadPage(d1, "home")).enabled.logos === true);
-  const locked = await store.setSectionEnabled(d1, "home", "hero", false, "u1");
-  check("a section other pages link to cannot be hidden", !locked.ok && locked.kind === "locked" && (await store.loadPage(d1, "home")).enabled.hero === true);
-  const careers = await store.setSectionEnabled(d1, "about", "careers", false, "u1");
-  check("Careers (linked from the header and footer) cannot be hidden", !careers.ok && careers.kind === "locked");
+  // every block drawn on a public page can be switched off and on again, and its content is kept; copy that is not a block cannot
+  // on a fresh database with every page and section seeded
+  const vdb = new DatabaseSync(":memory:");
+  vdb.exec("PRAGMA foreign_keys = ON");
+  for (const f of migrations) {
+    if (f.startsWith("0008")) vdb.exec("INSERT INTO submissions (id, name, email, message, status, source, created_at, updated_at) VALUES ('legacy-1', 'Old Row', 'old@example.com', 'sent before the rename', 'read', 'contact-page', '2026-10-01T00:00:00.000Z', '2026-10-01T00:00:00.000Z')");
+    vdb.exec(readFileSync(join(ROOT, "migrations", f), "utf8"));
+  }
+  vdb.exec(readFileSync(join(ROOT, "db", "seed", "content.sql"), "utf8"));
+  vdb.exec(readFileSync(join(ROOT, "db", "seed", "pages.sql"), "utf8"));
+  const vd1 = { prepare(sql) { const st = vdb.prepare(sql); const make = (x) => ({ bind: (...y) => make(y), first: async () => st.get(...x) ?? null, all: async () => ({ results: st.all(...x).map((r) => ({ ...r })) }), run: async () => { const r = st.run(...x); return { success: true, meta: { changes: Number(r.changes) } }; } }); return make([]); }, batch: async (stmts) => { vdb.exec("BEGIN"); try { const out = []; for (const s of stmts) out.push(await s.run()); vdb.exec("COMMIT"); return out; } catch (e) { vdb.exec("ROLLBACK"); throw e; } } };
+  vdb.exec(`INSERT INTO users (id, email, name, password_hash, role, created_at, updated_at) VALUES ('u1', 'editor@example.com', 'Ed', 'x', 'admin', ${NOW}, ${NOW})`);
+  const vone = (sql, ...x) => vdb.prepare(sql).get(...x);
+  let blocks = 0, kept = true, lockedOk = true, missingNote = [];
+  for (const tpl of TEMPLATE_NAMES) {
+    for (const sl of TEMPLATES[tpl].sections) {
+      const row = vone("SELECT content FROM page_sections WHERE page_id = ? AND section_key = ?", `page_${tpl}`, sl.key);
+      if (sl.canDisable) {
+        blocks++;
+        const o = await store.setSectionEnabled(vd1, tpl, sl.key, false, "u1");
+        const hidden = (await store.loadPage(vd1, tpl)).enabled[sl.key] === false;
+        const stored = vone("SELECT is_enabled e, content c FROM page_sections WHERE page_id = ? AND section_key = ?", `page_${tpl}`, sl.key);
+        const i = await store.setSectionEnabled(vd1, tpl, sl.key, true, "u1");
+        if (!(o.ok && hidden && stored.e === 0 && stored.c === row.content && i.ok && (await store.loadPage(vd1, tpl)).enabled[sl.key] === true)) kept = false;
+      } else {
+        const o = await store.setSectionEnabled(vd1, tpl, sl.key, false, "u1");
+        if (o.ok || o.kind !== "locked" || !sl.lock) lockedOk = false;
+        if (!sl.lock) missingNote.push(`${tpl}.${sl.key}`);
+      }
+    }
+  }
+  vdb.close();
+  check(`every block of a public page (${blocks} sections) can be switched off and on: the row stays in the database with its content, only the flag changes`, blocks >= 25 && kept);
+  check("a section that is not a block (page labels, shared lists, the footer extras) cannot be switched off, and says why", lockedOk && missingNote.length === 0, missingNote.join());
+  const important = TEMPLATE_NAMES.flatMap((tpl) => TEMPLATES[tpl].sections.filter((sl) => sl.confirm).map((sl) => `${tpl}.${sl.key}`));
+  check("the important sections ask for confirmation, each saying what visitors lose; they are all switchable", important.length >= 12 && TEMPLATE_NAMES.every((tpl) => TEMPLATES[tpl].sections.every((sl) => !sl.confirm || (sl.canDisable && sl.confirm.length > 30))) && ["home.hero", "about.careers", "contact.form", "works.grid", "shared.cta"].every((k) => important.includes(k)), important.join());
+  check("every heading section (the one with the page's <h1>) asks for confirmation", ["home.hero", "about.hero", "works.hero", "blog.hero", "contact.intro"].every((k) => important.includes(k)));
   const nope = await store.setSectionEnabled(d1, "home", "sidebar", false, "u1");
   check("hiding a section the template does not have is refused", !nope.ok && nope.kind === "missing");
 }
@@ -398,7 +431,7 @@ db.exec(`INSERT INTO users (id, email, name, password_hash, role, created_at, up
   const { templateFromParam } = await imp("src/lib/cms/registry.ts");
   check("an admin address names a page by slug or by id", templateFromParam("home") === "home" && templateFromParam("page_home") === "home" && templateFromParam("service-detail") === "service_detail" && templateFromParam("page_service_detail") === "service_detail" && templateFromParam("nope") === undefined);
   const ls = await store.listSections(d1, "home");
-  check("a page's sections are listed in the template's order with their type label and whether they can be hidden", ls.sections.map((x) => x.key).join() === TEMPLATES.home.sections.map((x) => x.key).join() && ls.sections[0].typeLabel === "Home hero" && ls.sections[0].canDisable === false && ls.sections.find((x) => x.key === "logos").canDisable === true && ls.page?.template === "home");
+  check("a page's sections are listed in the template's order with their type label and whether they can be hidden", ls.sections.map((x) => x.key).join() === TEMPLATES.home.sections.map((x) => x.key).join() && ls.sections[0].typeLabel === "Home hero" && ls.sections[0].canDisable === true && ls.sections[0].confirm !== undefined && ls.sections.find((x) => x.key === "logos").canDisable === true && ls.page?.template === "home");
   const un = await store.listSections(d1, "about");
   check("a page that is not seeded lists its sections with no row and no page", un.page === null && un.sections.length === 9 && un.sections.every((x) => x.updatedAt === null));
   db.prepare("UPDATE page_sections SET content = '{\"bad\":1}' WHERE id = 'sec_home_why'").run();

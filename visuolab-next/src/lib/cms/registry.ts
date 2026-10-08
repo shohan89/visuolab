@@ -72,10 +72,14 @@ export type SectionSlot = {
   type: SectionType;
   /** What the admin calls the section ("Trusted by", "Where we work"). */
   name: string;
-  /** May an editor switch the section off? False when other pages link to its anchor, or the page is meaningless without it. */
+  /** May an editor switch the section off? True for every block drawn on a public page; false for copy that is not a block of its own (labels, shared lists). */
   canDisable: boolean;
   /** The `id` other links point at (never editable). */
   anchor?: string;
+  /** Set for important sections: what visitors lose when it is switched off. The editor must confirm before switching it off (the server insists). */
+  confirm?: string;
+  /** Why a section cannot be switched off (shown in the admin). */
+  lock?: string;
 };
 
 export type TemplateDef = {
@@ -88,18 +92,21 @@ export type TemplateDef = {
   sections: readonly SectionSlot[];
 };
 
-const slot = (key: string, type: SectionType, name: string, canDisable = false, anchor?: string): SectionSlot => ({ key, type, name, canDisable, ...(anchor ? { anchor } : {}) });
+const slot = (key: string, type: SectionType, name: string, canDisable = false, anchor?: string, note?: { confirm?: string; lock?: string }): SectionSlot => ({ key, type, name, canDisable, ...(anchor ? { anchor } : {}), ...(note?.confirm ? { confirm: note.confirm } : {}), ...(note?.lock ? { lock: note.lock } : {}) });
+const HERO = "Visitors lose the page headline and its introduction (the page's <h1>, which search engines and screen readers rely on).";
+const LABELS = "These are the words around the other blocks of the page, not a block of their own, so there is nothing to hide.";
+const POOL = "A list that other sections draw from, not a block of its own: switch off the sections that show it instead.";
 
 export const TEMPLATES: Record<PageTemplate, TemplateDef> = {
   home: {
     label: "Home", route: "/", hasSeo: true,
     sections: [
-      slot("hero", "home_hero", "Hero", false, "top"),
+      slot("hero", "home_hero", "Hero", true, "top", { confirm: HERO }),
       slot("logos", "logo_marquee", "Trusted by", true),
       slot("showreel", "showreel", "Showreel", true, "showreel"),
-      slot("why", "why_stats", "Why us and numbers", false, "why"),
-      slot("services", "services_columns", "Services", false, "services"),
-      slot("work", "case_showcase", "Our cases", false, "work"),
+      slot("why", "why_stats", "Why us and numbers", true, "why"),
+      slot("services", "services_columns", "Services", true, "services", { confirm: "Visitors lose the Services block, including the book-a-call bar. Menu and footer links to #services will go nowhere." }),
+      slot("work", "case_showcase", "Our cases", true, "work", { confirm: "Visitors lose the case study panels on Home. Links to #work will go nowhere." }),
       slot("industries", "industries_grid", "Industries", true, "industries"),
       slot("process", "process_steps", "How we work", true, "process"),
       slot("reviews", "reviews_carousel", "Reviews", true, "reviews"),
@@ -108,7 +115,7 @@ export const TEMPLATES: Record<PageTemplate, TemplateDef> = {
   about: {
     label: "About", route: "/about", hasSeo: true,
     sections: [
-      slot("hero", "about_hero", "Hero", false, "top"),
+      slot("hero", "about_hero", "Hero", true, "top", { confirm: HERO }),
       slot("mosaic", "case_mosaic", "Projects strip", true),
       slot("principles", "principles_list", "Principles", true, "principles"),
       slot("mission", "mission_vision", "Mission and vision", true),
@@ -116,37 +123,37 @@ export const TEMPLATES: Record<PageTemplate, TemplateDef> = {
       slot("manifesto", "manifesto", "Manifesto", true, "manifesto"),
       slot("places", "office_clocks", "Where we work", true, "places"),
       slot("faq", "faq_accordion", "FAQ", true, "faq"),
-      slot("careers", "open_roles", "Careers", false, "careers"), // the footer and header link to /about#careers
+      slot("careers", "open_roles", "Careers", true, "careers", { confirm: "Visitors lose the open roles. The header and footer link to /about#careers, so those links will point at nothing." }),
     ],
   },
   works: {
     label: "Works", route: "/works", hasSeo: true,
-    sections: [slot("hero", "works_hero", "Hero and filters", false, "top"), slot("grid", "works_grid", "Case study grid", false, "works-grid"), slot("reviews", "reviews_carousel", "Reviews", true, "reviews")],
+    sections: [slot("hero", "works_hero", "Hero and filters", true, "top", { confirm: HERO + " The discipline filter chips go with it." }), slot("grid", "works_grid", "Case study grid", true, "works-grid", { confirm: "Visitors lose the grid of case studies: the page would show no work." }), slot("reviews", "reviews_carousel", "Reviews", true, "reviews")],
   },
   blog: {
     label: "Blog", route: "/blog", hasSeo: true,
-    sections: [slot("hero", "blog_hero", "Hero and filters", false, "top"), slot("featured", "blog_featured", "Featured article"), slot("grid", "blog_grid", "Article grid", false, "posts-grid")],
+    sections: [slot("hero", "blog_hero", "Hero and filters", true, "top", { confirm: HERO + " The topic filter chips go with it." }), slot("featured", "blog_featured", "Featured article", true), slot("grid", "blog_grid", "Article grid", true, "posts-grid", { confirm: "Visitors lose the list of articles: the page would show none." })],
   },
   contact: {
     label: "Contact", route: "/contact", hasSeo: true,
-    sections: [slot("intro", "contact_intro", "Intro", false, "top"), slot("form", "contact_form", "Form", false, "form")],
+    sections: [slot("intro", "contact_intro", "Intro", true, "top", { confirm: HERO + " The direct e-mail links and facts go with it." }), slot("form", "contact_form", "Form", true, "form", { confirm: "Visitors can no longer send a message from the website. Links to #form will go nowhere." })],
   },
   // copy that is the same on every service page; each service's own content stays on the service (table `services`)
   service_detail: {
     label: "Service page copy", route: null, hasSeo: false,
     sections: [slot("logos", "logo_marquee", "Trusted by", true), slot("reviews", "reviews_carousel", "Reviews", true, "rev-title")],
   },
-  case_study_detail: { label: "Case study page copy", route: null, hasSeo: false, sections: [slot("chrome", "case_study_chrome", "Page labels")] },
-  article_detail: { label: "Article page copy", route: null, hasSeo: false, sections: [slot("chrome", "article_chrome", "Page labels")] },
+  case_study_detail: { label: "Case study page copy", route: null, hasSeo: false, sections: [slot("chrome", "case_study_chrome", "Page labels", false, undefined, { lock: LABELS })] },
+  article_detail: { label: "Article page copy", route: null, hasSeo: false, sections: [slot("chrome", "article_chrome", "Page labels", false, undefined, { lock: LABELS })] },
   // copy used on several pages
   shared: {
     label: "Shared across pages", route: null, hasSeo: false,
     sections: [
-      slot("cta", "cta_band", "Closing call to action", false, "contact"),
-      slot("reviews", "reviews_collection", "Reviews"),
-      slot("logos", "logos_collection", "Trusted-by names"),
-      slot("rating", "site_rating", "Rating line"),
-      slot("footer", "footer_extras", "Footer extras"),
+      slot("cta", "cta_band", "Closing call to action", true, "contact", { confirm: "The closing call-to-action band disappears from every page that shows it. Menu and button links to #contact on those pages will go nowhere." }),
+      slot("reviews", "reviews_collection", "Reviews", false, undefined, { lock: POOL }),
+      slot("logos", "logos_collection", "Trusted-by names", false, undefined, { lock: POOL }),
+      slot("rating", "site_rating", "Rating line", false, undefined, { lock: POOL }),
+      slot("footer", "footer_extras", "Footer extras", false, undefined, { lock: "The footer carries the legal links and the copyright line on every page, so it always stays." }),
     ],
   },
 };

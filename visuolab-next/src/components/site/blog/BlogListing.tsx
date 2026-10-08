@@ -14,27 +14,29 @@ import Img from "@/components/site/ui/Img";
  * The blog index: heading, topic chips, the featured article, then the grid of the others. `posts` are the live articles, newest first;
  * the featured one is the newest article flagged featured, or the newest article when none is. The words around them come from the page CMS.
  */
-export default function BlogListing({ posts, topics, hero, featuredContent, grid }: { posts: BlogPost[]; topics: string[]; hero: BlogHeroSection; featuredContent: BlogFeaturedSection; grid: BlogGridSection }) {
+export default function BlogListing({ posts, topics, hero, featuredContent, grid }: { posts: BlogPost[]; topics: string[]; hero: BlogHeroSection | null; featuredContent: BlogFeaturedSection | null; grid: BlogGridSection | null }) {
   const featured = posts.find((p) => p.featured) ?? posts[0];
   const rest = posts.filter((p) => p !== featured);
-  const chips: Chip[] = [
+  const chips: Chip[] = hero ? [
     { key: "all", label: hero.allLabel, count: posts.length },
     ...topics.map((t) => ({ key: t, label: t, count: posts.filter((p) => p.category === t).length })),
-  ];
+  ] : [];
   return (
     <FilterProvider>
       <div className="hero-run has-aurora">
         <Aurora />
-        <section className="page-hero blog-hero" id="top" aria-labelledby="blog-title">
-          <div className="wrap">
-            {hero.label && <p className="label reveal">{hero.label}</p>}
-            <h1 className="h1 reveal" id="blog-title" style={st({ "--i": 0 })}><Rich>{hero.title}</Rich></h1>
-            {hero.lead && <p className="lead reveal" style={st({ "--i": 1 })}>{hero.lead}</p>}
-            <FilterChips chips={chips} ariaLabel="Filter by topic" />
-          </div>
-        </section>
+        {hero && (
+          <section className="page-hero blog-hero" id="top" aria-labelledby="blog-title">
+            <div className="wrap">
+              {hero.label && <p className="label reveal">{hero.label}</p>}
+              <h1 className="h1 reveal" id="blog-title" style={st({ "--i": 0 })}><Rich>{hero.title}</Rich></h1>
+              {hero.lead && <p className="lead reveal" style={st({ "--i": 1 })}>{hero.lead}</p>}
+              <FilterChips chips={chips} ariaLabel="Filter by topic" />
+            </div>
+          </section>
+        )}
 
-        {featured && (
+        {featured && featuredContent && (
           <section className="featured-sec" aria-label="Latest article">
             <div className="wrap">
               <Link className="featured reveal" href={`/blog/${featured.slug}`}>
@@ -50,11 +52,13 @@ export default function BlogListing({ posts, topics, hero, featuredContent, grid
           </section>
         )}
 
-        <section className="posts-sec" aria-label="Articles">
-          <div className="wrap">
-            <BlogGrid posts={rest} emptyText={grid.emptyText} />
-          </div>
-        </section>
+        {grid && (
+          <section className="posts-sec" aria-label="Articles">
+            <div className="wrap">
+              <BlogGrid posts={rest} emptyText={grid.emptyText} />
+            </div>
+          </section>
+        )}
       </div>
     </FilterProvider>
   );

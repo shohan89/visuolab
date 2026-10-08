@@ -31,7 +31,11 @@ export type EntitySection<I> = {
   apply: (input: I, content: unknown) => I;
   /** An error of the whole-record check (keyed by the record's field path) as the path inside this section, or null when it belongs elsewhere. */
   mapError: (key: string) => string | null;
-  /** Sections the design can show or hide (the record has a switch for them). */
+  /** Important sections: what visitors lose when it is switched off. The editor must confirm first (the server insists). */
+  confirm?: string;
+  /** Why this section cannot be switched off (it is not a block drawn on the page). */
+  lock?: string;
+  /** Sections that keep their own flag in the record (the two service sections that had a switch before). Others use entity_hidden_sections. */
   toggle?: { read: (input: I) => boolean; write: (input: I, on: boolean) => I };
 };
 
@@ -42,6 +46,8 @@ export function section<I, S extends z.ZodType>(def: {
   apply: (input: I, content: z.output<S>) => I;
   map?: Record<string, string>;
   mapError?: (key: string) => string | null;
+  confirm?: string;
+  lock?: string;
   toggle?: { read: (input: I) => boolean; write: (input: I, on: boolean) => I };
 }): EntitySection<I> {
   return {
@@ -50,6 +56,8 @@ export function section<I, S extends z.ZodType>(def: {
     apply: def.apply as (input: I, content: unknown) => I,
     mapError: def.mapError ?? remap(def.map ?? {}),
     ...(def.toggle ? { toggle: def.toggle } : {}),
+    ...(def.confirm ? { confirm: def.confirm } : {}),
+    ...(def.lock ? { lock: def.lock } : {}),
   };
 }
 

@@ -8,6 +8,8 @@ import type { FooterExtrasSection } from "@/lib/cms/sections";
  * pictures already turned into addresses. Nothing private is in here. Passed down from the layout, like the site settings and the menus.
  */
 export type SharedContent = {
+  /** Whether the closing call to action is switched on. */
+  ctaEnabled: boolean;
   cta: {
     title: string;
     lead: string;

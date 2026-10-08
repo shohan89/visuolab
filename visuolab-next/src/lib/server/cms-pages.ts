@@ -66,10 +66,10 @@ export const getCaseTiles = async (ids: readonly string[]) => getCaseTilesByIds(
 
 /** The shared copy every page draws in its closing band and footer, with the pictures as addresses. */
 export async function getSharedContent(): Promise<SharedContent> {
-  const [{ content }, media] = await Promise.all([getPage("shared"), getMediaIndex()]);
+  const [{ content, enabled }, media] = await Promise.all([getPage("shared"), getMediaIndex()]);
   const pic = (r: MediaReference) => ({ src: mediaSrc(r, media), alt: r.alt });
   const c = content.cta;
-  return { cta: { title: c.title, lead: c.lead, primary: c.primary, avatars: c.avatars.map(pic), floaters: c.floaters.map(pic) }, footer: content.footer };
+  return { ctaEnabled: enabled.cta, cta: { title: c.title, lead: c.lead, primary: c.primary, avatars: c.avatars.map(pic), floaters: c.floaters.map(pic) }, footer: content.footer };
 }
 
 /** Where the built-in pictures live (`media_people-jordan` is /assets/people/jordan.webp): used only when the database cannot be read. */
@@ -81,5 +81,5 @@ const builtInPic = (ref: MediaReference) => {
 /** The shared copy the site was built with: drawn if the database cannot be read. */
 export function builtInSharedContent(): SharedContent {
   const d = PAGE_DEFAULTS.shared;
-  return { cta: { title: d.cta.title, lead: d.cta.lead, primary: d.cta.primary, avatars: d.cta.avatars.map(builtInPic), floaters: d.cta.floaters.map(builtInPic) }, footer: d.footer };
+  return { ctaEnabled: true, cta: { title: d.cta.title, lead: d.cta.lead, primary: d.cta.primary, avatars: d.cta.avatars.map(builtInPic), floaters: d.cta.floaters.map(builtInPic) }, footer: d.footer };
 }

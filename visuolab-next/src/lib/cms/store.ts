@@ -251,7 +251,7 @@ export async function listPages(db: Db): Promise<PageSummary[]> {
   });
 }
 
-export type SectionSummary = { key: string; name: string; type: SectionType; typeLabel: string; canDisable: boolean; anchor?: string; enabled: boolean; /** null: no row yet */ updatedAt: string | null; /** the saved content no longer passes its schema (the default is drawn) */ damaged: boolean };
+export type SectionSummary = { key: string; name: string; type: SectionType; typeLabel: string; canDisable: boolean; confirm?: string; lock?: string; anchor?: string; enabled: boolean; /** null: no row yet */ updatedAt: string | null; /** the saved content no longer passes its schema (the default is drawn) */ damaged: boolean };
 
 /** The sections of a page in order, with what the page overview needs. */
 export async function listSections(db: Db, template: PageTemplate): Promise<{ page: PageRecord | null; sections: SectionSummary[] }> {
@@ -263,7 +263,7 @@ export async function listSections(db: Db, template: PageTemplate): Promise<{ pa
     if (row) {
       try { damaged = s(row.section_type) !== slot.type || !SECTION_TYPES[slot.type].schema.safeParse(JSON.parse(s(row.content))).success; } catch { damaged = true; }
     }
-    return { key: slot.key, name: slot.name, type: slot.type, typeLabel: SECTION_TYPES[slot.type].label, canDisable: slot.canDisable, ...(slot.anchor ? { anchor: slot.anchor } : {}), enabled: slot.canDisable ? !row || row.is_enabled === 1 : true, updatedAt: row ? s(row.updated_at) : null, damaged };
+    return { key: slot.key, name: slot.name, type: slot.type, typeLabel: SECTION_TYPES[slot.type].label, canDisable: slot.canDisable, ...(slot.confirm ? { confirm: slot.confirm } : {}), ...(slot.lock ? { lock: slot.lock } : {}), ...(slot.anchor ? { anchor: slot.anchor } : {}), enabled: slot.canDisable ? !row || row.is_enabled === 1 : true, updatedAt: row ? s(row.updated_at) : null, damaged };
   });
   return { page: pageRow ? toPage(pageRow) : null, sections };
 }

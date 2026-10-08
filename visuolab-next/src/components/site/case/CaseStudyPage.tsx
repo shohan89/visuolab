@@ -31,28 +31,38 @@ function Gallery({ figures }: { figures: CaseFigure[] }) {
  * A case study page. All eight case studies share one layout and differ only in content, so one component
  * renders any CaseStudy. Markup, class names and --i stagger indexes follow work/*.html.
  */
-export default function CaseStudyPage({ study: c, chrome }: { study: CaseStudy; chrome: CaseStudyChromeSection }) {
+export default function CaseStudyPage({ study: c, chrome, hidden = [] }: { study: CaseStudy; chrome: CaseStudyChromeSection; /** keys of the sections an editor switched off */ hidden?: readonly string[] }) {
+  const off = new Set(hidden);
   return (
     <>
       <div className="hero-run has-aurora">
         <Aurora />
-        <section className="work-hero" id="top" aria-labelledby="case-title">
+        {!(off.has("hero") && off.has("facts")) && (
+        <section className="work-hero" id="top" aria-labelledby={off.has("hero") ? undefined : "case-title"}>
           <div className="wrap">
+            {!off.has("hero") && <>
             <p className="crumbs reveal"><Link href="/works">{chrome.breadcrumbRoot}</Link><span>/</span><span>{c.hero.breadcrumb}</span></p>
             <h1 className="h1 reveal" id="case-title" style={st({ "--i": 0 })}><Rich>{c.hero.title}</Rich></h1>
+            </>}
+            {!off.has("facts") && (
             <dl className="meta reveal" style={st({ "--i": 1 })}>
               {c.hero.facts.map((f) => (
                 <div key={f.term}><dt>{f.term}</dt><dd>{f.value}</dd></div>
               ))}
             </dl>
+            )}
           </div>
         </section>
+        )}
 
+        {!off.has("hero") && (
         <section className="cover-wrap" aria-hidden="true">
           <div className="wrap"><div className="cover reveal"><Img sizes="(max-width: 900px) 100vw, 1300px" src={c.cover.src} alt={c.cover.alt} fetchPriority="high" /></div></div>
         </section>
+        )}
       </div>
 
+      {!off.has("about") && (
       <section className="sec about-project" aria-labelledby="about-title">
         <div className="wrap">
           <div className="about-grid">
@@ -66,9 +76,11 @@ export default function CaseStudyPage({ study: c, chrome }: { study: CaseStudy; 
           </div>
         </div>
       </section>
+      )}
 
-      <Gallery figures={c.galleryA} />
+      {!off.has("gallery-1") && <Gallery figures={c.galleryA} />}
 
+      {!off.has("approach") && (
       <section className="sec chapters-sec process-sec has-aurora glow-right" aria-labelledby="chapters-title">
         <Aurora />
         <div className="wrap">
@@ -76,9 +88,11 @@ export default function CaseStudyPage({ study: c, chrome }: { study: CaseStudy; 
           <Stairs idPrefix={`stair-${c.slug}`} steps={c.process.steps} />
         </div>
       </section>
+      )}
 
-      <Gallery figures={c.galleryB} />
+      {!off.has("gallery-2") && <Gallery figures={c.galleryB} />}
 
+      {!off.has("challenges") && (
       <section className="sec challenges-sec" aria-labelledby="challenges-title">
         <div className="wrap">
           <div className="ws">
@@ -96,7 +110,9 @@ export default function CaseStudyPage({ study: c, chrome }: { study: CaseStudy; 
           </div>
         </div>
       </section>
+      )}
 
+      {!off.has("wide-image") && (
       <section className="wide-sec" aria-hidden="true">
         <div className="wrap">
           <figure className="wide-img reveal">
@@ -105,7 +121,9 @@ export default function CaseStudyPage({ study: c, chrome }: { study: CaseStudy; 
           </figure>
         </div>
       </section>
+      )}
 
+      {!off.has("results") && (
       <section className="sec results-sec" aria-labelledby="results-title">
         <div className="wrap">
           <div className="ws">
@@ -126,7 +144,9 @@ export default function CaseStudyPage({ study: c, chrome }: { study: CaseStudy; 
           </div>
         </div>
       </section>
+      )}
 
+      {!off.has("related-work") && (
       <section className="sec more-sec" aria-labelledby="more-title">
         <div className="wrap">
           <div className="more-head">
@@ -144,6 +164,7 @@ export default function CaseStudyPage({ study: c, chrome }: { study: CaseStudy; 
           </div>
         </div>
       </section>
+      )}
     </>
   );
 }
