@@ -2,6 +2,7 @@
 
 import { readContactForm, validateContact, type ContactResult } from "@/lib/validation/contact";
 import { getDb } from "@/lib/server/db";
+import { getPage } from "@/lib/server/cms-pages";
 import { background } from "@/lib/server/background";
 import { dispatchEvent, verifyTurnstile } from "@/lib/server/integrations";
 import { notifySubmission } from "@/lib/server/notifications";
@@ -37,7 +38,8 @@ export async function submitContact(formData: FormData): Promise<ContactResult> 
     if (!sameOrigin(h)) return { ok: false, code: "server", message: await serverError() };
 
     // 1. validate (the browser ran the same schema; this is the check that counts)
-    const checked = validateContact(readContactForm(formData));
+    const form = (await getPage("contact")).content.form; // the choices the form offers are page content: the same lists decide what is accepted
+    const checked = validateContact(readContactForm(formData), { needs: form.needOptions, budgets: form.budgetOptions });
     if (!checked.ok) return { ok: false, code: "invalid", fieldErrors: checked.fieldErrors };
     const input = checked.data;
 

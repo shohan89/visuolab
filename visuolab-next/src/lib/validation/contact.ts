@@ -1,27 +1,30 @@
 import { z } from "zod";
-import { BUDGETS, NEEDS } from "@/content/contact";
 
 /** Limits shared by the browser check and the server check. */
 export const LIMITS = { name: 100, email: 254, company: 120, message: 5000, messageMin: 10 } as const;
 
 const text = (max: number) => z.string().trim().max(max);
 
+/** The choices the form offers. They are content (the contact_form section of the page CMS), so the check reads them from there rather than keeping a second copy. */
+export type ContactOptions = { needs: readonly string[]; budgets: readonly string[] };
+
 /**
  * The contact form, as the server accepts it. The same schema runs in the browser (for early feedback) and on the server
  * (the only check that counts). Fields not on the form are rejected, not ignored.
  */
-export const contactSchema = z
-  .object({
-    name: text(LIMITS.name).min(1, "Please tell us your name."),
-    email: z.string().trim().toLowerCase().max(LIMITS.email).pipe(z.email("Please enter a valid email address.")),
-    company: text(LIMITS.company).optional(),
-    need: z.array(z.enum(NEEDS)).max(NEEDS.length).default([]),
-    budget: z.enum(BUDGETS).optional(),
-    message: text(LIMITS.message).min(LIMITS.messageMin, `Please add a few details (at least ${LIMITS.messageMin} characters).`),
-  })
-  .strict();
+export const buildContactSchema = (options: ContactOptions) =>
+  z
+    .object({
+      name: text(LIMITS.name).min(1, "Please tell us your name."),
+      email: z.string().trim().toLowerCase().max(LIMITS.email).pipe(z.email("Please enter a valid email address.")),
+      company: text(LIMITS.company).optional(),
+      need: z.array(z.string().refine((v) => options.needs.includes(v), "Please choose from the list.")).max(options.needs.length).default([]),
+      budget: z.string().refine((v) => options.budgets.includes(v), "Please choose from the list.").optional(),
+      message: text(LIMITS.message).min(LIMITS.messageMin, `Please add a few details (at least ${LIMITS.messageMin} characters).`),
+    })
+    .strict();
 
-export type ContactInput = z.infer<typeof contactSchema>;
+export type ContactInput = z.infer<ReturnType<typeof buildContactSchema>>;
 
 /** Field name -> first error message, for showing next to the form. */
 export type FieldErrors = Partial<Record<keyof ContactInput, string>>;
@@ -40,10 +43,10 @@ export function readContactForm(data: { get(k: string): unknown; getAll(k: strin
   };
 }
 
-export function validateContact(raw: ReturnType<typeof readContactForm>):
+export function validateContact(raw: ReturnType<typeof readContactForm>, options: ContactOptions):
   | { ok: true; data: ContactInput }
   | { ok: false; fieldErrors: FieldErrors } {
-  const parsed = contactSchema.safeParse(raw);
+  const parsed = buildContactSchema(options).safeParse(raw);
   if (parsed.success) return { ok: true, data: parsed.data };
   const fieldErrors: FieldErrors = {};
   for (const issue of parsed.error.issues) {

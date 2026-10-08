@@ -8,6 +8,7 @@ import type { SeoPageKey } from "@/lib/settings/schema";
 import { getDb } from "./db";
 import { getSiteConfig, type SiteConfig } from "./site-config";
 import { getSiteUrl } from "@/lib/site";
+import { publicMediaUrl } from "@/lib/media/url";
 
 /*
  * Per-route SEO: reads what each page needs from D1 (the site settings, the service / case study / article row) and returns the
@@ -48,19 +49,37 @@ const description = (t: string) => clip(t, 300);
 const LABELS: Record<SeoPageKey, string> = { home: "Home", about: "About", works: "Works", blog: "Blog", contact: "Contact" };
 const PATHS: Record<SeoPageKey, string> = { home: "/", about: "/about", works: "/works", blog: "/blog", contact: "/contact" };
 
-/** Title, description and index/noindex of a fixed page: the SEO settings (Settings → SEO → Page metadata), which start as the text the pages always had. */
+/** What the page editor (Pages > the page > Search settings) has set for a fixed page. A field left empty there is NULL here: the Settings value (or the page's own) is used. */
+async function pageOverrides(page: SeoPageKey) {
+  try {
+    return await getDb()
+      .prepare("SELECT p.seo_title, p.seo_description, p.canonical_url, p.noindex, m.url AS og_url, m.width AS og_width, m.height AS og_height FROM pages p LEFT JOIN media m ON m.id = p.og_image_id WHERE p.template = ?1")
+      .bind(page)
+      .first<{ seo_title: string | null; seo_description: string | null; canonical_url: string | null; noindex: number; og_url: string | null; og_width: number | null; og_height: number | null }>();
+  } catch {
+    return null; // the page CMS tables are not there yet (a database that has not been migrated): the settings alone decide
+  }
+}
+
+/**
+ * Title, description, canonical address, share picture and index/noindex of a fixed page. First the page's own search settings (the page editor),
+ * then the SEO settings (Settings → SEO → Page metadata, which start as the text the pages always had), then the page's derived picture and the site default.
+ */
 export async function fixedPageSeo(page: SeoPageKey, opts: { image?: SeoImage; items?: Crumb[] } = {}): Promise<PageSeoResult> {
-  const { siteUrl, cfg, site } = await seoContext();
+  const [{ siteUrl, cfg, site }, own] = await Promise.all([seoContext(), pageOverrides(page)]);
   const p = cfg.seo.pages[page];
   const path = PATHS[page];
-  const noindex = p.noindex || !cfg.seo.indexing;
-  const metadata = pageMetadata({ site, title: p.title, description: description(p.description), path, image: opts.image, noindex });
+  const title = own?.seo_title || p.title;
+  const text = own?.seo_description || p.description;
+  const noindex = !!own?.noindex || p.noindex || !cfg.seo.indexing;
+  const image = own?.og_url ? await sized(publicMediaUrl(own.og_url), title, { width: own.og_width, height: own.og_height }) : opts.image;
+  const metadata = pageMetadata({ site, title, description: description(text), path, ...(own?.canonical_url ? { canonical: own.canonical_url } : {}), image, noindex });
   const trail: Crumb[] = page === "home" ? [] : [{ name: LABELS[page], path }];
   const nodes: Record<string, unknown>[] = [];
   if (page === "home") nodes.push(websiteNode(siteUrl, cfg));
-  if (page === "about") nodes.push(pageNode(siteUrl, { type: "AboutPage", path, name: p.title, description: p.description }));
-  if (page === "contact") nodes.push(pageNode(siteUrl, { type: "ContactPage", path, name: p.title, description: p.description }));
-  if (page === "works" || page === "blog") nodes.push(collectionNode(siteUrl, { path, name: p.title, description: p.description, items: opts.items ?? [] }));
+  if (page === "about") nodes.push(pageNode(siteUrl, { type: "AboutPage", path, name: title, description: text }));
+  if (page === "contact") nodes.push(pageNode(siteUrl, { type: "ContactPage", path, name: title, description: text }));
+  if (page === "works" || page === "blog") nodes.push(collectionNode(siteUrl, { path, name: title, description: text, items: opts.items ?? [] }));
   if (trail.length) nodes.push(breadcrumbNode(siteUrl, cfg.general.siteName, trail, path));
   return { metadata, jsonLd: nodes };
 }

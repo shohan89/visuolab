@@ -3,9 +3,10 @@ import BlogListing from "@/components/site/blog/BlogListing";
 import JsonLd from "@/components/site/JsonLd";
 import { getBlogCategories, getBlogPosts } from "@/lib/server/cms";
 import { getDb } from "@/lib/server/db";
+import { getPage } from "@/lib/server/cms-pages";
 import { fixedPageSeo } from "@/lib/server/seo";
 
-// The list of articles comes from D1 at request time.
+// The list of articles and the words around it come from D1 at request time (the page CMS).
 export const dynamic = "force-dynamic";
 
 /** The blog page's share picture is the featured (or newest) article's; its structured data lists the live articles. */
@@ -22,11 +23,11 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function BlogRoute() {
-  const { posts, topics, seo } = await load();
+  const [{ posts, topics, seo }, { content }] = await Promise.all([load(), getPage("blog")]);
   return (
     <>
       <JsonLd nodes={seo.jsonLd} />
-      <BlogListing posts={posts} topics={topics} />
+      <BlogListing posts={posts} topics={topics} hero={content.hero} featuredContent={content.featured} grid={content.grid} />
     </>
   );
 }

@@ -5,6 +5,7 @@ import JsonLd from "@/components/site/JsonLd";
 import { getAdmin } from "@/lib/server/auth";
 import { getCaseStudyBySlug, getSlugRedirect } from "@/lib/server/cms";
 import { getDb } from "@/lib/server/db";
+import { getPage } from "@/lib/server/cms-pages";
 import { caseStudySeo } from "@/lib/server/seo";
 
 // Content comes from D1 at request time, then goes through the same page component as before.
@@ -36,11 +37,11 @@ export default async function CaseStudyRoute({ params }: Props) {
   const { study, redirectTo, preview } = await load((await params).slug);
   if (redirectTo) permanentRedirect(`/works/${redirectTo}`);
   if (!study) notFound();
-  const seo = await caseStudySeo(study, !!preview);
+  const [seo, { content }] = await Promise.all([caseStudySeo(study, !!preview), getPage("case_study_detail")]);
   return (
     <>
       <JsonLd nodes={seo.jsonLd} />
-      <CaseStudyPage study={study} />
+      <CaseStudyPage study={study} chrome={content.chrome} />
     </>
   );
 }

@@ -9,7 +9,7 @@ export type TocItem = { id: string; text: string };
  * "On this page" rail (sticky, left of the article). The links come from the article's headings; the link for the
  * heading the reader is currently under gets .on (same test as the original script: heading top <= scrollY + nav height + 40).
  */
-export default function ArticleToc({ items }: { items: TocItem[] }) {
+export default function ArticleToc({ items, label }: { items: TocItem[]; label: string }) {
   const [current, setCurrent] = useState(0);
 
   useEffect(() => {
@@ -26,8 +26,8 @@ export default function ArticleToc({ items }: { items: TocItem[] }) {
   }, [items]);
 
   return (
-    <aside className="toc" aria-label="On this page">
-      <p className="rail-label">On this page</p>
+    <aside className="toc" aria-label={label}>
+      <p className="rail-label">{label}</p>
       <nav className="toc-list">
         {items.map((it, i) => (
           <a href={`#${it.id}`} className={i === current ? "on" : undefined} key={it.id}>{it.text}</a>

@@ -7,17 +7,29 @@ import LogoMarquee from "@/components/site/ui/LogoMarquee";
 import { PillBadge } from "@/components/site/ui/Pill";
 import Rich from "@/components/site/ui/Rich";
 import SvgIcon from "@/components/site/ui/SvgIcon";
+import type { LogoSeed } from "@/content/logos";
+import type { ReviewSeed } from "@/content/reviews";
 import type { ServiceSeed } from "@/content/types";
+import type { LogoMarqueeSection, ReviewsCarouselSection, SiteRatingSection } from "@/lib/cms/sections";
 import { st } from "@/lib/css";
 import ServiceReviews from "./ServiceReviews";
 import Img from "@/components/site/ui/Img";
+
+/** The words and lists that are the same on every service page (the page CMS: `service_detail` and the shared page). */
+export type ServiceChrome = {
+  rating: SiteRatingSection;
+  /** The "Trusted by" band under the hero; null when switched off. */
+  logos: { content: LogoMarqueeSection; items: readonly LogoSeed[] } | null;
+  /** The reviews carousel at the end; null when switched off. */
+  reviews: { content: ReviewsCarouselSection; items: readonly ReviewSeed[] } | null;
+};
 
 /**
  * A service detail page. The four services share one layout, so one component renders any ServiceSeed.
  * Markup, class names and the --i stagger indexes follow service/*.html. The original put "svc-page" on <body>;
  * the shared layout owns <body>, so the same class sits on this wrapper (its rules are all descendant selectors).
  */
-export default function ServicePage({ service: s }: { service: ServiceSeed }) {
+export default function ServicePage({ service: s, chrome }: { service: ServiceSeed; chrome: ServiceChrome }) {
   return (
     <div className="svc-page">
       <div className="svc-run hero-run has-aurora">
@@ -31,7 +43,7 @@ export default function ServicePage({ service: s }: { service: ServiceSeed }) {
                 <p className="lead reveal" style={st({ "--i": 1 })}>{s.hero.lead}</p>
                 <div className="svc-cta-row reveal" style={st({ "--i": 2 })}>
                   <Link className="pill" href={s.hero.cta.href}>{s.hero.cta.label} <PillBadge /></Link>
-                  <div className="rev-badge"><span className="stars">★★★★★</span><span><b>5.0</b> · 60+ reviews on Clutch</span></div>
+                  <div className="rev-badge"><span className="stars">★★★★★</span><span><b>{chrome.rating.score}</b>{` · ${chrome.rating.text}`}</span></div>
                 </div>
               </div>
               <div className="svc-shot reveal" style={st({ "--i": 1 })} aria-hidden="true">
@@ -49,10 +61,12 @@ export default function ServicePage({ service: s }: { service: ServiceSeed }) {
                 ))}
               </div>
             </div>
-            <div className="logos reveal" style={st({ "--i": 3 })}>
-              <p className="label">Trusted by</p>
-              <LogoMarquee />
-            </div>
+            {chrome.logos && (
+              <div className="logos reveal" style={st({ "--i": 3 })}>
+                {chrome.logos.content.label && <p className="label">{chrome.logos.content.label}</p>}
+                <LogoMarquee items={chrome.logos.items} />
+              </div>
+            )}
           </div>
         </section>
 
@@ -145,7 +159,7 @@ export default function ServicePage({ service: s }: { service: ServiceSeed }) {
         </div>
       </section>
 
-      <ServiceReviews />
+      {chrome.reviews && <ServiceReviews content={chrome.reviews.content} reviews={chrome.reviews.items} rating={chrome.rating} />}
     </div>
   );
 }

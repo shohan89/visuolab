@@ -32,6 +32,28 @@ export async function getCaseStudies(db: Db, opts: { publishedOnly?: boolean; sl
   return cases.filter((c) => !opts.slug || c.slug === opts.slug).map((c) => mapCaseStudy(c, images, media, bySlug));
 }
 
+/** The home/service "showcase" cards of the chosen case studies, in the order given. A case study that is not published is left out. */
+export async function getCaseCardsByIds(db: Db, ids: readonly string[], media?: Record<string, string>): Promise<CaseCardSeed[]> {
+  if (!ids.length) return [];
+  const index = media ?? (await mediaUrls(db));
+  const rows = await all(db, `SELECT id, slug, card_image_id, card_image_alt, showcase_json FROM case_studies WHERE ${STATUS} AND id IN (${ids.map((_, i) => `?${i + 1}`).join(",")})`, ...ids);
+  return ids.flatMap((id) => {
+    const r = rows.find((x) => x.id === id);
+    return r ? [mapCaseCard(s(r.slug), r.card_image_id, r.card_image_alt, r.showcase_json, index)] : [];
+  });
+}
+
+/** What the strip of projects on the About page draws for each chosen case study: its name, its kind, its card picture and its link. Published only, in the order given. */
+export async function getCaseTilesByIds(db: Db, ids: readonly string[], media?: Record<string, string>): Promise<{ slug: string; name: string; kind: string; image: string }[]> {
+  if (!ids.length) return [];
+  const index = media ?? (await mediaUrls(db));
+  const rows = await all(db, `SELECT id, slug, client_name, short_kind, card_image_id FROM case_studies WHERE ${STATUS} AND id IN (${ids.map((_, i) => `?${i + 1}`).join(",")})`, ...ids);
+  return ids.flatMap((id) => {
+    const r = rows.find((x) => x.id === id);
+    return r ? [{ slug: s(r.slug), name: s(r.client_name), kind: s(r.short_kind), image: index[s(r.card_image_id)] ?? "" }] : [];
+  });
+}
+
 /** One case study page model, or null. Drafts and archived ones only with `includeUnpublished`. */
 export async function getCaseStudyBySlug(db: Db, slug: string, opts: { includeUnpublished?: boolean } = {}): Promise<CaseStudy | null> {
   const media = await mediaUrls(db);

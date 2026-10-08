@@ -1,9 +1,11 @@
 import { st } from "@/lib/css";
+import type { MissionVisionSection } from "@/lib/cms/sections";
 
-export default function AboutMission() {
+/** Mission and vision: two cards side by side. The words come from the page CMS. */
+export default function AboutMission({ content }: { content: MissionVisionSection }) {
   return (
     <>
-      <section className="sec" aria-label="Mission and vision"><div className="wrap"><div className="mv"><div className="mv-card reveal" style={st({ "--i": "0" })}><span className="tag">The image of the future</span><h3>Mission</h3><p>{"To design brands, products and websites that carry one idea faithfully from the first sketch to the last screen — with small senior teams, honest advice, and the patience to stay past launch and keep improving what we shipped."}</p></div><div className="mv-card reveal" style={st({ "--i": "1" })}><span className="tag">Our ambition</span><h3>Vision</h3><p>{"To be the studio founders call first — trusted with the work that defines a company, still around when it's time to evolve it, and a place where every launch raises the bar for the next one."}</p></div></div></div></section>
+      <section className="sec" aria-label="Mission and vision"><div className="wrap"><div className="mv">{[content.mission, content.vision].map((c, i) => <div className="mv-card reveal" style={st({ "--i": String(i) })} key={i}>{c.tag && <span className="tag">{c.tag}</span>}<h3>{c.title}</h3><p>{c.text}</p></div>)}</div></div></section>
     </>
   );
 }

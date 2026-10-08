@@ -16,7 +16,7 @@ const CHECK = <Icon><path d="M5 12.5l4.5 4.5L19 7.5" /></Icon>;
  * The links are plain anchors (they work without JavaScript); only the copy button needs the client.
  * Like the original script, both the share links and the copied text use the article address without any #section.
  */
-export default function ShareRail({ url, title }: { url: string; title: string }) {
+export default function ShareRail({ url, title, label }: { url: string; title: string; label: string }) {
   const [copied, setCopied] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
@@ -36,7 +36,7 @@ export default function ShareRail({ url, title }: { url: string; title: string }
 
   return (
     <aside className="share" aria-label="Share this article">
-      <p className="rail-label">Share</p>
+      <p className="rail-label">{label}</p>
       <div className="share-btns">
         {nets.map((n) => (
           <a href={n.href} target="_blank" rel="noopener" aria-label={n.label} title={n.label} key={n.label}>{n.icon}</a>

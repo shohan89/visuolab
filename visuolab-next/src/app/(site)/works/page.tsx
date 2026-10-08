@@ -4,8 +4,9 @@ import WorksPage from "@/components/site/works/WorksPage";
 import { fixedPageSeo } from "@/lib/server/seo";
 import { getCaseStudies } from "@/lib/server/cms";
 import { getDb } from "@/lib/server/db";
+import { getPage, getRating, getReviewSeeds } from "@/lib/server/cms-pages";
 
-// The list of case studies comes from D1 at request time; the page itself is unchanged.
+// The list of case studies and the words around it come from D1 at request time (the page CMS); the page itself is unchanged.
 export const dynamic = "force-dynamic";
 
 /** The Works page's share picture is the first case study's card; its structured data lists every case study. */
@@ -20,11 +21,11 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function WorksRoute() {
-  const { cases, seo: s } = await seo();
+  const [{ cases, seo: s }, { content, enabled }, reviews, rating] = await Promise.all([seo(), getPage("works"), getReviewSeeds(), getRating()]);
   return (
     <>
       <JsonLd nodes={s.jsonLd} />
-      <WorksPage cases={cases} />
+      <WorksPage cases={cases} hero={content.hero} grid={content.grid} reviews={enabled.reviews ? { content: content.reviews, items: reviews, rating } : null} />
     </>
   );
 }

@@ -4,6 +4,7 @@ import Aurora from "@/components/site/ui/Aurora";
 import { PillBadge } from "@/components/site/ui/Pill";
 import Rich from "@/components/site/ui/Rich";
 import type { CaseFigure, CaseStudy } from "@/content/types";
+import type { CaseStudyChromeSection } from "@/lib/cms/sections";
 import { st } from "@/lib/css";
 import Img from "@/components/site/ui/Img";
 
@@ -30,14 +31,14 @@ function Gallery({ figures }: { figures: CaseFigure[] }) {
  * A case study page. All eight case studies share one layout and differ only in content, so one component
  * renders any CaseStudy. Markup, class names and --i stagger indexes follow work/*.html.
  */
-export default function CaseStudyPage({ study: c }: { study: CaseStudy }) {
+export default function CaseStudyPage({ study: c, chrome }: { study: CaseStudy; chrome: CaseStudyChromeSection }) {
   return (
     <>
       <div className="hero-run has-aurora">
         <Aurora />
         <section className="work-hero" id="top" aria-labelledby="case-title">
           <div className="wrap">
-            <p className="crumbs reveal"><Link href="/works">Works</Link><span>/</span><span>{c.hero.breadcrumb}</span></p>
+            <p className="crumbs reveal"><Link href="/works">{chrome.breadcrumbRoot}</Link><span>/</span><span>{c.hero.breadcrumb}</span></p>
             <h1 className="h1 reveal" id="case-title" style={st({ "--i": 0 })}><Rich>{c.hero.title}</Rich></h1>
             <dl className="meta reveal" style={st({ "--i": 1 })}>
               {c.hero.facts.map((f) => (
@@ -130,7 +131,7 @@ export default function CaseStudyPage({ study: c }: { study: CaseStudy }) {
         <div className="wrap">
           <div className="more-head">
             <div className="sec-grid"><p className="label reveal">{c.more.label}</p><h2 className="h2 reveal" id="more-title" style={st({ "--i": 0 })}><Rich>{c.more.title}</Rich></h2></div>
-            <Link className="pill ghost reveal" style={st({ "--i": 1 })} href="/works">All projects <PillBadge /></Link>
+            <Link className="pill ghost reveal" style={st({ "--i": 1 })} href="/works">{`${chrome.allProjectsLabel} `}<PillBadge /></Link>
           </div>
           <div className="more">
             {c.more.items.map((m, i) => (

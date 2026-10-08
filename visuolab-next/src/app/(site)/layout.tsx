@@ -3,6 +3,7 @@ import SiteMotion from "@/components/motion/SiteMotion";
 import Analytics from "@/components/site/Analytics";
 import ShellFooter from "@/components/site/ShellFooter";
 import NavigationProvider, { FALLBACK_NAVIGATION } from "@/components/site/NavigationProvider";
+import SharedContentProvider from "@/components/site/SharedContentProvider";
 import SiteConfigProvider, { type PublicSite } from "@/components/site/SiteConfigProvider";
 import StyleGate from "@/components/site/StyleGate";
 import { FONT_PRELOAD } from "@/lib/fonts.generated";
@@ -22,6 +23,7 @@ import JsonLd from "@/components/site/JsonLd";
 import { organizationNode } from "@/lib/seo/jsonld";
 import { twitterHandle } from "@/lib/seo/metadata";
 import { getNavigation } from "@/lib/server/cms";
+import { builtInSharedContent, getSharedContent } from "@/lib/server/cms-pages";
 import { getDb } from "@/lib/server/db";
 import { getSiteConfig } from "@/lib/server/site-config";
 import { analyticsActive } from "@/lib/settings/schema";
@@ -61,8 +63,18 @@ async function menus() {
   }
 }
 
+/** The closing band and footer copy from the page CMS. If it cannot be read the site still renders, with the copy it was built with. */
+async function shared() {
+  try {
+    return await getSharedContent();
+  } catch (e) {
+    console.error("shared copy unavailable, using the built-in copy", e instanceof Error ? e.message : e);
+    return builtInSharedContent();
+  }
+}
+
 export default async function SiteLayout({ children }: { children: React.ReactNode }) {
-  const [siteUrl, c, navigation] = await Promise.all([getSiteUrl(), getSiteConfig(), menus()]);
+  const [siteUrl, c, navigation, sharedContent] = await Promise.all([getSiteUrl(), getSiteConfig(), menus(), shared()]);
   // the few values the header and footer show; nothing private
   const site: PublicSite = {
     siteName: c.general.siteName,
@@ -92,11 +104,13 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
       <body className="rhythm">
         <SiteConfigProvider value={site}>
           <NavigationProvider value={navigation}>
-            <SiteMotion>
-              <Nav />
-              {children}
-              <ShellFooter />
-            </SiteMotion>
+            <SharedContentProvider value={sharedContent}>
+              <SiteMotion>
+                <Nav />
+                {children}
+                <ShellFooter />
+              </SiteMotion>
+            </SharedContentProvider>
           </NavigationProvider>
           {/* production only: in development React logs a (harmless) class mismatch for every element the script reveals before hydration */}
           {import.meta.env.PROD && <script dangerouslySetInnerHTML={{ __html: EARLY_REVEAL }} />}

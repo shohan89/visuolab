@@ -9,7 +9,7 @@ import BlogCard from "./BlogCard";
  * script; until a chip is used the classes are left alone so the scroll reveal adds .in itself.
  * The featured article above the grid is not part of the filtered set.
  */
-export default function BlogGrid({ posts }: { posts: BlogPost[] }) {
+export default function BlogGrid({ posts, emptyText }: { posts: BlogPost[]; emptyText: string }) {
   const { filter, touched } = useFilter();
   const shown = posts.filter((p) => matchesFilter(filter, [p.category])).length;
   return (
@@ -20,7 +20,7 @@ export default function BlogGrid({ posts }: { posts: BlogPost[] }) {
           return <BlogCard post={p} index={i} state={touched ? (hit ? " in" : " is-hidden") : ""} key={p.slug} />;
         })}
       </div>
-      <p className="works-empty" hidden={shown > 0}>Nothing here yet — try another topic.</p>
+      <p className="works-empty" hidden={shown > 0}>{emptyText}</p>
     </>
   );
 }

@@ -10,7 +10,7 @@ import Img from "@/components/site/ui/Img";
  * The works grid. Filtering hides non-matching cards (.is-hidden) and marks matching ones .in, exactly like the
  * original script did; until a chip has been used the classes are left alone so the scroll reveal can add .in itself.
  */
-export default function WorksGrid({ cases }: { cases: CaseStudy[] }) {
+export default function WorksGrid({ cases, emptyText }: { cases: CaseStudy[]; emptyText: string }) {
   const { filter, touched } = useFilter();
   const shown = cases.filter((c) => matchesFilter(filter, c.card.filters)).length;
   return (
@@ -37,7 +37,7 @@ export default function WorksGrid({ cases }: { cases: CaseStudy[] }) {
           );
         })}
       </div>
-      <p className="works-empty" hidden={shown > 0}>Nothing here yet — try another filter.</p>
+      <p className="works-empty" hidden={shown > 0}>{emptyText}</p>
     </>
   );
 }

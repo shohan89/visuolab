@@ -1,9 +1,12 @@
 import { st } from "@/lib/css";
+import Rich from "@/components/site/ui/Rich";
+import type { PrinciplesListSection } from "@/lib/cms/sections";
 
-export default function AboutPrinciples() {
+/** Principles: a numbered list (the numbers are generated). The words come from the page CMS. */
+export default function AboutPrinciples({ content }: { content: PrinciplesListSection }) {
   return (
     <>
-      <section className="sec" id="principles" aria-labelledby="principles-title"><div className="wrap"><div className="principles"><div className="sec-grid"><p className="label reveal">How we think</p><h2 className="h2 reveal" id="principles-title" style={st({ "--i": "0" })}>{"The principles "}<em>behind</em>{" the work"}</h2><p className="lead reveal" style={st({ "--i": "1" })}>{"Five things we won't compromise on, whatever the brief."}</p></div><div className="principle-list"><div className="principle reveal" style={st({ "--i": "0" })}><span className="num">01</span><div><h3>Craft over volume</h3><p>We take on a handful of projects at a time so senior people stay on yours from kickoff to launch.</p></div></div><div className="principle reveal" style={st({ "--i": "1" })}><span className="num">02</span><div><h3>One idea, every surface</h3><p>{"Brand, product and web are designed by the same hands, so the story doesn't drift between them."}</p></div></div><div className="principle reveal" style={st({ "--i": "2" })}><span className="num">03</span><div><h3>Motion is meaning</h3><p>{"Animation earns its place by explaining, guiding or delighting — never by default."}</p></div></div><div className="principle reveal" style={st({ "--i": "3" })}><span className="num">04</span><div><h3>Decide on real things</h3><p>Concepts, prototypes and working files replace slide decks. You see the work as it happens.</p></div></div><div className="principle reveal" style={st({ "--i": "4" })}><span className="num">05</span><div><h3>Ship, then keep going</h3><p>Launch is a milestone, not the finish line. We stay to measure, learn and iterate.</p></div></div></div></div></div></section>
+      <section className="sec" id="principles" aria-labelledby="principles-title"><div className="wrap"><div className="principles"><div className="sec-grid">{content.label && <p className="label reveal">{content.label}</p>}<h2 className="h2 reveal" id="principles-title" style={st({ "--i": "0" })}><Rich>{content.title}</Rich></h2>{content.lead && <p className="lead reveal" style={st({ "--i": "1" })}>{content.lead}</p>}</div><div className="principle-list">{content.items.map((it, i) => <div className="principle reveal" style={st({ "--i": String(i) })} key={i}><span className="num">{String(i + 1).padStart(2, "0")}</span><div><h3>{it.title}</h3><p>{it.text}</p></div></div>)}</div></div></div></section>
     </>
   );
 }

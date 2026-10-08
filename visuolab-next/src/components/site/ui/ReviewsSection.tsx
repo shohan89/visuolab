@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import CarouselNav from "@/components/motion/CarouselNav";
 import Aurora from "@/components/site/ui/Aurora";
-import { reviews } from "@/content/reviews";
+import { reviews as builtInReviews, type ReviewSeed } from "@/content/reviews";
 import { st } from "@/lib/css";
 import Img from "@/components/site/ui/Img";
 
@@ -13,10 +13,14 @@ type Props = {
   label: string;
   title: ReactNode;
   titleId?: string;
+  /** The reviews to show (the shared list from the page CMS); the built-in list when not given. */
+  reviews?: readonly ReviewSeed[];
+  /** The rating line; the built-in one when not given. */
+  rating?: { score: string; text: string };
 };
 
 /** The client-reviews carousel with its heading, rating line and prev/next buttons. Same list everywhere it appears. */
-export default function ReviewsSection({ className, id, ariaLabelledBy, label, title, titleId }: Props) {
+export default function ReviewsSection({ className, id, ariaLabelledBy, label, title, titleId, reviews = builtInReviews, rating = { score: "5.0", text: "60+ reviews on Clutch" } }: Props) {
   return (
     <section className={className} id={id} aria-labelledby={ariaLabelledBy}>
       <Aurora />
@@ -25,7 +29,7 @@ export default function ReviewsSection({ className, id, ariaLabelledBy, label, t
           <div>
             <p className="label reveal">{label}</p>
             <h2 className="h2 reveal" id={titleId} style={st({ "--i": 0, marginTop: "18px" })}>{title}</h2>
-            <div className="rating reveal" style={st({ "--i": 1 })}><b>5.0</b> <span className="stars">★★★★★</span> 60+ reviews on Clutch</div>
+            <div className="rating reveal" style={st({ "--i": 1 })}><b>{rating.score}</b> <span className="stars">★★★★★</span>{` ${rating.text}`}</div>
           </div>
           <CarouselNav>
             <button className="round-btn" data-carousel="prev" aria-label="Previous"><svg viewBox="0 0 24 24"><path d="M19 12H5M11 6l-6 6 6 6" /></svg></button>

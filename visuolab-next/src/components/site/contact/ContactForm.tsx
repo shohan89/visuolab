@@ -5,13 +5,12 @@ import { submitContact } from "@/actions/contact";
 import { useSiteConfig } from "@/components/site/SiteConfigProvider";
 import TurnstileWidget from "@/components/site/contact/TurnstileWidget";
 import { PillBadge } from "@/components/site/ui/Pill";
-import { BUDGETS, NEEDS } from "@/content/contact";
+import type { ContactFormSection } from "@/lib/cms/sections";
 import type { FieldErrors } from "@/lib/validation/contact";
 
 /** The validator brings in zod (about 80 KB): it is fetched when the visitor first touches the form, and the server checks the same rules anyway. */
 const loadValidation = () => import("@/lib/validation/contact");
 
-const NOTE = "By sending this you agree we may reply by email. That's it — no list, no sequence.";
 const FIELD_IDS: Record<string, string> = { name: "c-name", email: "c-email", company: "c-company", message: "c-msg" };
 
 /**
@@ -19,7 +18,7 @@ const FIELD_IDS: Record<string, string> = { name: "c-name", email: "c-email", co
  * browser validation bubbles and the red :user-invalid border for field problems, the .form-ok panel on success,
  * and the .form-note line (its text swapped) for errors that do not belong to one field.
  */
-export default function ContactForm({ turnstileKey = "" }: { turnstileKey?: string }) {
+export default function ContactForm({ content, turnstileKey = "" }: { content: ContactFormSection; turnstileKey?: string }) {
   const site = useSiteConfig();
   const form = useRef<HTMLFormElement>(null);
   const startedAt = useRef(0);
@@ -57,7 +56,7 @@ export default function ContactForm({ turnstileKey = "" }: { turnstileKey?: stri
     data.set("startedAt", String(startedAt.current));
     if (submissionKey.current) data.set("key", submissionKey.current);
     const { readContactForm, validateContact } = await loadValidation();
-    const local = validateContact(readContactForm(data));
+    const local = validateContact(readContactForm(data), { needs: content.needOptions, budgets: content.budgetOptions });
     if (!local.ok) { showFieldErrors(local.fieldErrors); return; }
 
     setPending(true);
@@ -68,7 +67,7 @@ export default function ContactForm({ turnstileKey = "" }: { turnstileKey?: stri
       else setError(res.message);
       setProofRound((n) => n + 1);
     } catch {
-      setError(`Something went wrong. Please try again, or email ${site.email}.`);
+      setError(content.error.replaceAll("{email}", site.email));
       setProofRound((n) => n + 1);
     }
     setPending(false);
@@ -84,28 +83,28 @@ export default function ContactForm({ turnstileKey = "" }: { turnstileKey?: stri
       onSubmit={onSubmit}
       onInput={(e) => (e.target as HTMLInputElement).setCustomValidity?.("")}
     >
-      <div className="field"><label htmlFor="c-name">Your name</label><input id="c-name" name="name" type="text" required autoComplete="name" placeholder="Jane Okafor" maxLength={100} /></div>
-      <div className="field"><label htmlFor="c-email">Email</label><input id="c-email" name="email" type="email" required autoComplete="email" placeholder="jane@company.com" maxLength={254} /></div>
-      <div className="field"><label htmlFor="c-company">Company <span>optional</span></label><input id="c-company" name="company" type="text" autoComplete="organization" placeholder="Company name" maxLength={120} /></div>
+      <div className="field"><label htmlFor="c-name">{content.name.label}</label><input id="c-name" name="name" type="text" required autoComplete="name" placeholder={content.name.placeholder} maxLength={100} /></div>
+      <div className="field"><label htmlFor="c-email">{content.email.label}</label><input id="c-email" name="email" type="email" required autoComplete="email" placeholder={content.email.placeholder} maxLength={254} /></div>
+      <div className="field"><label htmlFor="c-company">{`${content.company.label} `}<span>optional</span></label><input id="c-company" name="company" type="text" autoComplete="organization" placeholder={content.company.placeholder} maxLength={120} /></div>
 
       <fieldset className="field">
-        <legend>What do you need?</legend>
+        <legend>{content.needLegend}</legend>
         <div className="opts">
-          {NEEDS.map((n) => (
+          {content.needOptions.map((n) => (
             <label className="opt" key={n}><input type="checkbox" name="need" value={n} /><span>{n}</span></label>
           ))}
         </div>
       </fieldset>
       <fieldset className="field">
-        <legend>Budget range</legend>
+        <legend>{content.budgetLegend}</legend>
         <div className="opts">
-          {BUDGETS.map((b) => (
+          {content.budgetOptions.map((b) => (
             <label className="opt" key={b}><input type="radio" name="budget" value={b} /><span>{b}</span></label>
           ))}
         </div>
       </fieldset>
 
-      <div className="field"><label htmlFor="c-msg">About the project</label><textarea id="c-msg" name="message" rows={5} required placeholder="What are you building, what's the deadline, and what does success look like?" maxLength={5000}></textarea></div>
+      <div className="field"><label htmlFor="c-msg">{content.message.label}</label><textarea id="c-msg" name="message" rows={5} required placeholder={content.message.placeholder} maxLength={5000}></textarea></div>
 
       {/* Decoys for bots: out of sight and out of the tab order. A filled "website" field marks the message as spam. */}
       <div aria-hidden="true" style={{ position: "absolute", left: "-10000px", top: "auto", width: 1, height: 1, overflow: "hidden" }}>
@@ -114,9 +113,9 @@ export default function ContactForm({ turnstileKey = "" }: { turnstileKey?: stri
 
       {turnstileKey && <TurnstileWidget siteKey={turnstileKey} resetKey={proofRound} />}
 
-      <button className="pill" type="submit" disabled={busy} style={busy ? { opacity: 0.6 } : undefined}>Send message <PillBadge /></button>
-      <p className="form-note" hidden={sent} role={error ? "alert" : undefined}>{error ?? NOTE}</p>
-      <p className="form-ok" role="status" hidden={!sent}>Thanks — that&apos;s with us. You&apos;ll hear back within one working day.</p>
+      <button className="pill" type="submit" disabled={busy} style={busy ? { opacity: 0.6 } : undefined}>{`${content.submitLabel} `}<PillBadge /></button>
+      <p className="form-note" hidden={sent} role={error ? "alert" : undefined}>{error ?? content.note}</p>
+      <p className="form-ok" role="status" hidden={!sent}>{content.success}</p>
     </form>
   );
 }
