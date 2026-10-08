@@ -247,6 +247,23 @@ Not modelled, because the original design has no such page: a not-found page, le
 - Case studies are referenced the same way (`cases` paths, `caseIds.*`).
 - On save the server checks every reference against the library: the file exists and is the right kind (an image field refuses a video and the other way round), the case study exists. The error is reported on the field path (`bookBar.avatar.id`).
 - Fixed art (the hands, the orb, the mesh) is code, not media; it is not editable.
+
+### The media library in the section editor
+
+Every picture field of a section (`mediaRef`) is the library's `MediaField` with details on (`src/components/admin/MediaPicker.tsx`):
+
+| Need | How |
+|---|---|
+| Select existing | **Change** / **Choose image** opens the **library modal** on the existing media API (`/api/admin/media`). Each card shows the **thumbnail, title, file name, dimensions, file size and description (alt)**. |
+| Search and filter | A search box (title, description, file name), a **Source** filter (all / uploaded / shipped with the site) and a **Shape** filter (landscape / portrait / square), with a count of matching files and *Load more*. |
+| Upload new | **Upload new** opens the modal on its **Upload** tab (drag and drop or choose files; JPEG, PNG, WebP, GIF, AVIF, up to 10 MB). The Worker checks the file and writes it to **R2**; D1 keeps only the details. The new file is chosen at once. |
+| Replace | **Replace file** (for uploaded pictures) sends a new file to `/api/admin/media/<id>/replace`: the library entry keeps its id, so every page that uses it follows. It asks for confirmation first, because it changes every use. Pictures shipped with the site cannot be replaced here. |
+| Remove | **Remove** empties the field (an optional picture becomes `null`; a required one is refused on save with its message). |
+| Alt text | The field's own **description** is stored with the reference (`alt`; empty means decoration). The library's description is shown and **Use as description here** copies it across. |
+| Caption | None of the sections has a caption (the page sections show pictures without one). Captions exist where the design has them: on case study gallery images, in the case study editor. |
+| Videos | A video field opens the same modal on the videos only (no upload tab: videos are added by the site's developer). |
+
+A section stores **only the media id and the description**, never a URL or file data (`{ "id": "media_...", "alt": "" }`); the file bytes live in R2 and their details in `media`. When a page is drawn the reference is resolved by `mediaUrls()` to the library's address through `publicMediaUrl()`: the Cloudflare **media domain** (`MEDIA_BASE_URL`) when one is configured, otherwise the site's own `/media/...` path, with Cloudflare-resized copies when `IMAGE_TRANSFORMS` is on. The components that draw these pictures are unchanged and their CSS fixes the size and `object-fit` (`img.avatar`, `.floater img`, the showreel video), so a picture of any shape is drawn in the same box as before. The media library's "used in" list and its delete check include page sections (for example "Page: Home / Services"), and the foreign keys on `page_section_refs` refuse to delete a file a section uses.
 - Deleting a media file or a case study that is in use will now fail with a foreign key error. The admin screens that delete them must show a friendly "still used on: Home, About" message built from `page_section_refs` (implementation step).
 
 ## 9. Seeding

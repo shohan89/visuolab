@@ -6,6 +6,7 @@
 import { chromium } from "playwright";
 import { execSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
+import { PNG } from "pngjs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -21,6 +22,8 @@ const has = (h, s) => h.includes(s);
 const content = (id) => JSON.parse(sql(`SELECT content FROM page_sections WHERE id = '${id}'`)[0].content);
 
 sql("DELETE FROM rate_limits"); sql("DELETE FROM sessions");
+const refsSnapshot = sql("SELECT section_id, field_path, kind, media_id, case_study_id FROM page_section_refs");
+const mediaBefore = sql("SELECT id FROM media").map((m) => m.id);
 const snapshot = { sections: sql("SELECT id, content, is_enabled, updated_at FROM page_sections"), pages: sql("SELECT id, seo_title, seo_description, og_image_id, canonical_url, noindex, updated_at FROM pages") };
 const esc = (v) => (v === null ? "NULL" : typeof v === "number" ? v : `'${String(v).replace(/'/g, "''")}'`);
 
@@ -187,9 +190,123 @@ try {
   await page.locator("dialog.picker .picker-grid button", { hasText: /jordan/i }).first().click();
   await saveSection();
   check("a picture is chosen from the media library", (await content("sec_home_services")).bookBar.avatar?.id === "media_people-jordan" && has(await html("/"), "/assets/people/jordan.webp"));
+
+  // ---- media library in the editor: details, modal, filters, upload, replace, alt, remove, public rendering
+  await go("/admin/pages/home/services");
+  const bar = page.getByRole("group", { name: "Book a call bar" });
+  const infoText = (await bar.locator(".media-info").innerText()).replace(/\s+/g, " ");
+  check("an image field shows the file's name, size, dimensions and library description", /File\s*jordan/i.test(infoText) && /Size\s*[\d.]+ (KB|MB|B)/.test(infoText) && /\d+×\d+ px/.test(infoText) && /Library description/.test(infoText), infoText);
+  const avatarStyle = async () => page.evaluate(async () => { const r = await fetch("/"); const d = new DOMParser().parseFromString(await r.text(), "text/html"); return d.querySelector(".book-bar img.avatar")?.getAttribute("src") ?? null; });
+  const css = async () => { const c = await ctx.newPage(); await c.goto(BASE + "/"); await c.waitForLoadState("networkidle"); const v = await c.evaluate(() => { const e = document.querySelector(".book-bar img.avatar"); if (!e) return null; const s = getComputedStyle(e); return { w: s.width, h: s.height, fit: s.objectFit, radius: s.borderRadius, attrW: e.getAttribute("width"), attrH: e.getAttribute("height") }; }); await c.close(); return v; };
+  const cssBefore = await css();
+  await bar.getByRole("button", { name: /Change Photo/ }).click();
+  const dlg = page.locator("dialog.picker");
+  await dlg.locator(".picker-grid li").first().waitFor();
+  const cardText = (await dlg.locator(".picker-grid li").first().innerText()).replace(/\s+/g, " ");
+  check("the library modal shows each file's thumbnail, title, file name, dimensions, size and description", (await dlg.locator(".picker-grid li").first().locator("img").count()) === 1 && /\.(webp|png|jpe?g|avif|gif)/i.test(cardText) && /\d+×\d+ · [\d.]+ (KB|MB|B)/.test(cardText) && /No description|[A-Za-z]/.test(cardText), cardText);
+  const total0 = await dlg.locator(".picker-count").innerText();
+  await dlg.getByLabel("Search the media library").fill("jordan");
+  await page.waitForTimeout(900);
+  const cardsSearch = await dlg.locator(".picker-grid li").count();
+  check("search narrows the list (by title, description or file name)", cardsSearch >= 1 && cardsSearch < 10 && (await dlg.locator(".picker-grid li").first().innerText()).toLowerCase().includes("jordan"), `${total0} -> ${cardsSearch}`);
+  await dlg.getByLabel("Search the media library").fill("");
+  await dlg.getByLabel("Filter by source").selectOption("r2");
+  await page.waitForTimeout(900);
+  const uploadedOnly = await dlg.locator(".picker-count").innerText();
+  await dlg.getByLabel("Filter by source").selectOption("static");
+  await page.waitForTimeout(900);
+  const staticOnly = await dlg.locator(".picker-count").innerText();
+  check("filters: the source filter changes what is listed (uploaded vs shipped with the site)", uploadedOnly !== staticOnly && Number(staticOnly.match(/^(\d+)/)[1]) > 0, `${uploadedOnly} / ${staticOnly}`);
+  await dlg.getByLabel("Filter by source").selectOption("all");
+  await page.waitForTimeout(900);
+  const cardsAll = await dlg.locator(".picker-grid li").count();
+  await dlg.getByLabel("Filter by shape").selectOption("portrait");
+  await page.waitForTimeout(500);
+  const portraitCount = await dlg.locator(".picker-grid li").count();
+  await dlg.getByLabel("Filter by shape").selectOption("square");
+  await page.waitForTimeout(500);
+  const squareCount = await dlg.locator(".picker-grid li").count();
+  check("filters: the shape filter keeps only pictures of that shape (the library has landscape pictures, so portrait and square lists are shorter than the whole)", portraitCount < cardsAll && squareCount < cardsAll, `${portraitCount} portrait, ${squareCount} square of ${cardsAll}`);
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(300);
+
+  // upload new: a tall picture and a wide one, made here
+  const png = (w, h, rgb) => { const p = new PNG({ width: w, height: h }); for (let i = 0; i < w * h; i++) { p.data[i * 4] = rgb[0]; p.data[i * 4 + 1] = rgb[1]; p.data[i * 4 + 2] = rgb[2]; p.data[i * 4 + 3] = 255; } return PNG.sync.write(p); };
+  const stamp = Date.now();
+  const tall = join(tmpdir(), `cms-qa-tall-${stamp}.png`), wide = join(tmpdir(), `cms-qa-wide-${stamp}.png`);
+  writeFileSync(tall, png(60, 120, [200, 30, 90])); writeFileSync(wide, png(200, 60, [30, 120, 200]));
+  await bar.getByRole("button", { name: /Upload new Photo/ }).click();
+  await page.waitForTimeout(500);
+  check("Upload new opens the library on its Upload tab", (await page.locator("dialog.picker [role=tab][aria-selected=true]").innerText()) === "Upload");
+  await page.locator('dialog.picker input[type=file]').setInputFiles(tall);
+  await page.locator("dialog.picker").waitFor({ state: "hidden", timeout: 20000 });
+  const up1 = sql(`SELECT id, storage, mime, width, height, original_name, url FROM media WHERE original_name = 'cms-qa-tall-${stamp}.png'`)[0];
+  check("an uploaded picture goes to the library (stored in R2, only its details in D1) and is chosen in the field", !!up1 && up1.storage === "r2" && up1.width === 60 && up1.height === 120 && /^\/media\//.test(up1.url), JSON.stringify(up1));
+  const infoUp = (await bar.locator(".media-info").innerText()).replace(/\s+/g, " ");
+  check("the field now shows the uploaded file's name and dimensions", infoUp.includes(`cms-qa-tall-${stamp}.png`) && infoUp.includes("60×120 px"), infoUp);
+  await bar.getByLabel("Description for screen readers (leave empty if it is only decoration)").fill("A tall test picture");
+  await saveSection();
+  const sv = await content("sec_home_services");
+  check("only the media id and the description are stored in the section (no URL, no file data)", JSON.stringify(sv.bookBar.avatar) === JSON.stringify({ id: up1.id, alt: "A tall test picture" }) && !JSON.stringify(sv).includes("/media/") && JSON.stringify(sv).length < 6000);
+  const home1 = await html("/");
+  const srcUp = /class="avatar" src="([^"]+)" alt="A tall test picture"|src="([^"]+)" alt="A tall test picture"[^>]*class="avatar"|class="avatar"[^>]*src="([^"]+)"[^>]*alt="A tall test picture"/.exec(home1);
+  check("the public page resolves the reference to the media address and uses the page's description as alt", !!srcUp && /\/media\/|media\./.test(srcUp[1] ?? srcUp[2] ?? srcUp[3] ?? ""), srcUp?.[0]?.slice(0, 160));
+  const cssAfter = await css();
+  check("the picture is drawn exactly like before: same size, same object-fit, same rounding, no width/height attributes", JSON.stringify(cssAfter) === JSON.stringify(cssBefore) && cssAfter.fit === "cover", `${JSON.stringify(cssBefore)} vs ${JSON.stringify(cssAfter)}`);
+  const cssFloat = async () => { const c = await ctx.newPage(); await c.goto(BASE + "/about"); await c.waitForLoadState("networkidle"); const v = await c.evaluate(() => { const e = document.querySelector(".floater img"); if (!e) return null; const s = getComputedStyle(e); return { w: s.width, h: s.height, fit: s.objectFit }; }); await c.close(); return v; };
+  const floatBefore = await cssFloat();
+
+  // replace file: same library entry, new picture, every page follows
+  await bar.getByRole("button", { name: /Replace file of Photo/ }).waitFor();
+  page.once("dialog", (d) => d.accept());
+  await bar.locator('input[type=file][aria-label="Choose the new file"]').setInputFiles(wide);
+  await page.waitForTimeout(2500);
+  const rep = sql(`SELECT id, width, height, original_name, url FROM media WHERE id = '${up1.id}'`)[0];
+  check("Replace file keeps the library entry (same id) and gives it the new file", rep.id === up1.id && rep.width === 200 && rep.height === 60 && rep.url !== up1.url, JSON.stringify(rep));
+  check("the field shows the new file's details and says so", (await bar.locator(".media-info").innerText()).includes("200×60 px") && (await bar.locator(".cms-saved").innerText()).includes("File replaced"));
+  const home2 = await html("/");
+  check("the public page now serves the replaced file under the same reference (no section change needed)", home2.includes(rep.url.replace("/media/", "")) && !home2.includes(up1.url.replace("/media/", "")));
+  const cssWide = await css();
+  check("a picture of another shape is still drawn at the same size with object-fit: cover", JSON.stringify(cssWide) === JSON.stringify(cssBefore), `${JSON.stringify(cssWide)}`);
+
+  // use the same wide picture in the CTA band (every page) and check the floating picture keeps its box
+  await go("/admin/pages/shared/cta");
+  const firstFloater = page.locator("fieldset.le-item").filter({ has: page.locator("legend", { hasText: /^Picture 1$/ }) }).first();
+  await firstFloater.getByRole("button", { name: /Change Floating picture/ }).click();
+  await page.locator("dialog.picker .picker-grid li").first().waitFor();
+  await page.locator("dialog.picker .picker-grid li", { hasText: `cms-qa-wide-${stamp}.png` }).first().click().catch(async () => { await page.locator("dialog.picker").getByLabel("Search the media library").fill(`cms-qa-wide-${stamp}`); await page.waitForTimeout(900); await page.locator("dialog.picker .picker-grid li").first().click(); });
+  await saveSection();
+  const floatAfter = await cssFloat();
+  check("the CTA band's floating picture keeps its size and object-fit with a differently shaped picture", JSON.stringify(floatAfter) === JSON.stringify(floatBefore) && floatAfter?.fit === "cover", `${JSON.stringify(floatBefore)} vs ${JSON.stringify(floatAfter)}`);
+
+  // the library knows where the file is used, and refuses to delete it
+  await go(`/admin/media/${up1.id}`);
+  const usage = (await page.locator("main").innerText()).replace(/\s+/g, " ");
+  check("the media library lists the page sections that use a file (Home / Services)", /Home \/ Services/.test(usage), usage.slice(0, 200));
+
+  // alt text: use the library description, edit, remove
+  await go("/admin/pages/home/services");
+  await bar.getByLabel("Description for screen readers (leave empty if it is only decoration)").fill("");
+  await saveSection();
+  check("the description can be emptied (decoration): stored empty, alt=\"\" on the page", (await content("sec_home_services")).bookBar.avatar.alt === "" && /<img[^>]*class="avatar"[^>]*alt=""|<img[^>]*alt=""[^>]*class="avatar"/.test((await html("/")).split("book-bar")[1] ?? ""));
+  await bar.getByRole("button", { name: /Remove Photo/ }).click();
+  check("Remove clears the picture in the form and drops its description field", (await bar.locator(".media-info").count()) === 0 && (await bar.getByLabel("Description for screen readers (leave empty if it is only decoration)").count()) === 0);
+  await saveSection();
+  check("after saving, the optional picture is null in the section and gone from the public page", (await content("sec_home_services")).bookBar.avatar === null && !(await html("/")).includes('class="avatar"'.concat(' src="/media/')));
+  await bar.getByRole("button", { name: /Choose Photo/ }).click();
+  await page.locator("dialog.picker .picker-grid li", { hasText: /jordan/i }).first().click();
+  const libAlt = sql("SELECT alt_text FROM media WHERE id = 'media_people-jordan'")[0].alt_text;
+  if (libAlt) {
+    await bar.getByRole("button", { name: "Use as description here" }).click();
+    check("\"Use as description here\" copies the library description into the field", (await bar.getByLabel("Description for screen readers (leave empty if it is only decoration)").inputValue()) === libAlt);
+  }
+  await page.getByRole("button", { name: "Cancel changes" }).click();
   await go("/admin/pages/home/showreel");
-  const vids = await page.getByLabel("Video (MP4)").locator("option").allInnerTexts();
-  check("a video field offers the videos of the library", vids.length >= 2, vids.join("|"));
+  await page.getByRole("button", { name: /Change Video/ }).click();
+  await page.locator("dialog.picker .picker-grid li").first().waitFor();
+  const vcards = await page.locator("dialog.picker .picker-grid li").allInnerTexts();
+  check("a video field opens the library on the videos only (no upload tab), with name, size and description", vcards.length >= 1 && /showreel/i.test(vcards.join(" ")) && (await page.locator('dialog.picker[open] [role=tab]').count()) === 1 && (await page.locator("dialog.picker[open] .picker-grid img").count()) === 0, vcards.join(" | ").replace(/\s+/g, " "));
+  await page.keyboard.press("Escape");
   await go("/admin/pages/home/work");
   const sel = page.locator(".cms-case-row select");
   check("case studies are chosen from a list, in order", (await sel.count()) === 4);
@@ -279,6 +396,9 @@ try {
   for (const s of snapshot.sections) sql(`UPDATE page_sections SET content = ${esc(s.content)}, is_enabled = ${s.is_enabled}, updated_at = ${esc(s.updated_at)} WHERE id = ${esc(s.id)}`);
   for (const p of snapshot.pages) sql(`UPDATE pages SET seo_title = ${esc(p.seo_title)}, seo_description = ${esc(p.seo_description)}, og_image_id = ${esc(p.og_image_id)}, canonical_url = ${esc(p.canonical_url)}, noindex = ${p.noindex}, updated_at = ${esc(p.updated_at)} WHERE id = ${esc(p.id)}`);
   sql("DELETE FROM page_section_revisions"); // the versions this run made
+  sql("DELETE FROM page_section_refs");
+  for (const r of refsSnapshot) sql(`INSERT INTO page_section_refs (section_id, field_path, kind, media_id, case_study_id) VALUES (${esc(r.section_id)}, ${esc(r.field_path)}, ${esc(r.kind)}, ${esc(r.media_id)}, ${esc(r.case_study_id)})`);
+  sql(`DELETE FROM media WHERE id NOT IN (${mediaBefore.map(esc).join(",")})`); // the pictures this run uploaded
   sql("DELETE FROM rate_limits");
 }
 await browser.close();

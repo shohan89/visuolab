@@ -1,6 +1,8 @@
 import "server-only";
 import { env } from "cloudflare:workers";
 import { sniffImage, MAX_BYTES, type Sniffed } from "@/lib/media/sniff";
+import { TEMPLATES, slotOf } from "@/lib/cms/registry";
+import type { PageTemplate } from "@/lib/cms/types";
 import { publicMediaUrl, MEDIA_PREFIX } from "@/lib/media/url";
 import { slugify } from "@/lib/slug";
 import { getDb } from "./db";
@@ -37,7 +39,9 @@ export type MediaQuery = { q?: string; type?: "image" | "video" | "file"; storag
 const UNUSED = `NOT EXISTS (SELECT 1 FROM services v WHERE v.hero_image_a_id = m.id OR v.hero_image_b_id = m.id)
   AND NOT EXISTS (SELECT 1 FROM case_studies c WHERE c.card_image_id = m.id OR c.cover_image_id = m.id)
   AND NOT EXISTS (SELECT 1 FROM case_study_images i WHERE i.media_id = m.id)
-  AND NOT EXISTS (SELECT 1 FROM blog_posts p WHERE p.cover_image_id = m.id OR p.author_image_id = m.id OR p.og_image_id = m.id OR instr(p.body_json, '"media":"' || m.id || '"') > 0)`;
+  AND NOT EXISTS (SELECT 1 FROM blog_posts p WHERE p.cover_image_id = m.id OR p.author_image_id = m.id OR p.og_image_id = m.id OR instr(p.body_json, '"media":"' || m.id || '"') > 0)
+  AND NOT EXISTS (SELECT 1 FROM page_section_refs r WHERE r.media_id = m.id)
+  AND NOT EXISTS (SELECT 1 FROM pages g WHERE g.og_image_id = m.id)`;
 
 export async function listMedia(opts: MediaQuery): Promise<{ items: MediaItem[]; total: number; page: number; pages: number }> {
   const db = getDb();
@@ -180,6 +184,12 @@ export async function mediaUsage(id: string): Promise<Usage[]> {
   for (const r of await rows("SELECT client_name, card_image_id AS card FROM case_studies WHERE card_image_id = ?1 OR cover_image_id = ?1", id)) out.push({ where: "Case study", detail: `${s(r.client_name)} (card or hero image)` });
   for (const r of await rows("SELECT c.client_name, i.role FROM case_study_images i JOIN case_studies c ON c.id = i.case_study_id WHERE i.media_id = ?1", id)) out.push({ where: "Case study", detail: `${s(r.client_name)} (${s(r.role).replace("_", " ")})` });
   for (const r of await rows("SELECT title FROM blog_posts WHERE cover_image_id = ?1 OR author_image_id = ?1 OR og_image_id = ?1 OR instr(body_json, ?2) > 0", id, `"media":"${id}"`)) out.push({ where: "Blog article", detail: s(r.title) });
+  // the page CMS: pictures chosen in a section, and share pictures of pages
+  for (const r of await rows("SELECT p.template, s.section_key FROM page_section_refs r JOIN page_sections s ON s.id = r.section_id JOIN pages p ON p.id = s.page_id WHERE r.media_id = ?1 GROUP BY p.template, s.section_key", id)) {
+    const tpl = s(r.template) as PageTemplate;
+    out.push({ where: "Page", detail: `${TEMPLATES[tpl]?.label ?? tpl} / ${slotOf(tpl, s(r.section_key))?.name ?? s(r.section_key)}` });
+  }
+  for (const r of await rows("SELECT template FROM pages WHERE og_image_id = ?1", id)) out.push({ where: "Page", detail: `${TEMPLATES[s(r.template) as PageTemplate]?.label ?? s(r.template)} (share picture)` });
   return out;
 }
 

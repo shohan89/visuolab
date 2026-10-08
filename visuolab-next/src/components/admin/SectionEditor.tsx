@@ -7,11 +7,10 @@ import type { CaseOption, MediaOption } from "@/lib/server/services-admin";
 import Rich, { RichLines } from "@/components/site/ui/Rich";
 import { MediaField } from "./MediaPicker";
 
-export type VideoOption = { id: string; title: string };
 /** An earlier saved version of the section (content is null if it no longer passes the section's checks). */
 export type RevisionView = { id: string; savedAt: string; replacedAt: string; by: string | null; content: unknown };
 
-type Ctx = { media: MediaOption[]; videos: VideoOption[]; cases: CaseOption[]; errors: Record<string, string> };
+type Ctx = { media: MediaOption[]; cases: CaseOption[]; errors: Record<string, string> };
 type Obj = Record<string, unknown>;
 
 const isObj = (v: unknown): v is Obj => !!v && typeof v === "object" && !Array.isArray(v);
@@ -125,15 +124,8 @@ function Field({ def, value, path, set, ctx, bare = false }: { def: FieldDef; va
       return (
         <div className={err ? "field has-err media-pick" : "field media-pick"}>
           {bare ? null : <span className="label-like">{def.label}{def.optional ? <span className="opt-tag"> optional</span> : null}</span>}
-          {def.media === "video" ? (
-            <select id={id} value={ref?.id ?? ""} onChange={(e) => change(e.target.value)} aria-label={def.label}>
-              <option value="">{def.optional ? "None" : "Choose a video…"}</option>
-              {ctx.videos.map((v) => <option key={v.id} value={v.id}>{v.title}</option>)}
-            </select>
-          ) : (
-            <MediaField id={id} value={ref?.id ?? ""} known={ctx.media} optional={def.optional} label={def.label} onChange={(nid) => change(nid)} />
-          )}
-          {ref && (
+          <MediaField id={id} value={ref?.id ?? ""} known={ctx.media} optional={def.optional} label={def.label} kind={def.media} details onChange={(nid) => change(nid)} onDescribe={(alt) => set({ id: ref?.id ?? "", alt })} />
+          {ref && ref.id && (
             <>
               <label htmlFor={`${id}-alt`} className="sub">Description for screen readers (leave empty if it is only decoration)</label>
               <input id={`${id}-alt`} type="text" value={ref.alt} maxLength={240} onChange={(e) => set({ id: ref.id, alt: e.target.value })} />
@@ -225,7 +217,6 @@ type Props = {
   updatedAt: string;
   damaged: boolean;
   media: MediaOption[];
-  videos: VideoOption[];
   cases: CaseOption[];
   /** Earlier saved versions, newest first. */
   revisions: RevisionView[];
@@ -235,7 +226,7 @@ type Props = {
  * Edits the content of one section. The form is described by `fields` (src/lib/cms/fields.ts); nothing is written until Save, Cancel puts back what is
  * stored, and the server checks everything again against the strict schema of the section (the same rules, whatever the browser sent).
  */
-export default function SectionEditor({ template, sectionKey, fields, initial, updatedAt, damaged, media, videos, cases, revisions }: Props) {
+export default function SectionEditor({ template, sectionKey, fields, initial, updatedAt, damaged, media, cases, revisions }: Props) {
   const [value, setValue] = useState<Obj>(isObj(initial) ? initial : {});
   const [saved, setSaved] = useState<{ obj: Obj; stamp: string }>({ obj: isObj(initial) ? initial : {}, stamp: updatedAt });
   const [result, setResult] = useState<CmsFormState>(undefined);
@@ -257,7 +248,7 @@ export default function SectionEditor({ template, sectionKey, fields, initial, u
     });
   };
   const edit = (f: FieldDef, v: unknown) => { setResult(undefined); setValue((cur) => ({ ...cur, [f.key]: v })); };
-  const ctx: Ctx = { media, videos, cases, errors };
+  const ctx: Ctx = { media, cases, errors };
 
   return (
     <form className="svc-form cms-editor" onSubmit={(e) => { e.preventDefault(); if (dirty && !pending) save(); }} noValidate>
