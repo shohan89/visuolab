@@ -27,7 +27,7 @@ async function withSection(id, change, fn, enabled = 1) {
 const has = (h, s) => h.includes(s);
 
 sql("DELETE FROM rate_limits");
-check("pages and sections are seeded", sql("SELECT COUNT(*) n FROM pages")[0].n === 9 && sql("SELECT COUNT(*) n FROM page_sections")[0].n === 35);
+check("pages and sections are seeded", sql("SELECT COUNT(*) n FROM pages")[0].n === 9 && sql("SELECT COUNT(*) n FROM page_sections")[0].n === 36);
 
 // ---- Home
 await withSection("sec_home_hero", (c) => ({ ...c, eyebrow: "CMS EYEBROW", primaryCta: { label: "CMS CALL", href: "/contact" }, secondaryCta: null }), async () => {

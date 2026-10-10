@@ -41,7 +41,7 @@ for (const f of migrations) {
   db.exec(readFileSync(join(ROOT, "migrations", f), "utf8"));
 }
 db.exec(readFileSync(join(ROOT, "db", "seed", "content.sql"), "utf8"));
-check(`${migrations.length} migrations apply in order (0021 last), then the content seed`, migrations.at(-1).startsWith("0021"));
+check(`${migrations.length} migrations apply in order, then the content seed`, migrations.includes("0022_content_drafts.sql") && migrations.includes("0021_revision_details.sql"));
 
 // ---- the real records -------------------------------------------------------------------------------------------------------------
 const services = rows("SELECT * FROM services ORDER BY position").map((r) => ({ id: r.id, input: rowToServiceInput(r, rows("SELECT case_study_id FROM service_case_studies WHERE service_id = ? ORDER BY position", r.id).map((l) => l.case_study_id)) }));

@@ -130,7 +130,7 @@ Rules:
 **Case study page copy**: `chrome` (`case_study_chrome`). **Article page copy**: `chrome` (`article_chrome`).
 **Shared**: `cta` (`cta_band`, anchor `contact`), `reviews` (`reviews_collection`), `logos` (`logos_collection`), `rating` (`site_rating`), `footer` (`footer_extras`); none can be disabled.
 
-35 sections in 9 templates, 32 section types.
+36 sections in 9 templates, 33 section types.
 
 ## 5. Section schemas
 
@@ -210,7 +210,7 @@ Things that are **never** content, in any schema: decorative drawings, animation
 
 ### Current copy as defaults
 
-`src/lib/cms/defaults.ts` holds the current website copy for all 35 sections, typed key by key against the schemas (`PageContent<template>`: the compiler rejects a missing, extra or wrong field). It is (1) what the seed step writes into `page_sections`, (2) the content a section falls back to (section 11), and (3) the proof that the schemas accept the real site: `verify-pages.mjs` validates every default. Text came from the live site: Home and About lists from the seeded settings, the rest from the components.
+`src/lib/cms/defaults.ts` holds the current website copy for all 36 sections, typed key by key against the schemas (`PageContent<template>`: the compiler rejects a missing, extra or wrong field). It is (1) what the seed step writes into `page_sections`, (2) the content a section falls back to (section 11), and (3) the proof that the schemas accept the real site: `verify-pages.mjs` validates every default. Text came from the live site: Home and About lists from the seeded settings, the rest from the components.
 
 ## 6. Relationships
 
@@ -428,6 +428,35 @@ Every content change to a page section, or to a section of a service, case study
 **Audit.** Every content mutation is an audit entry that names the actor, the section and the fields, never the content: section saves and restores, switching a section on or off, page SEO, navigation, settings, integrations, media uploads, replacements and edits, and the create, save, publish, unpublish, archive, feature, reorder and delete of services, case studies and articles. Each entry also bumps the content version, which refreshes the cached public pages.
 
 **Verification.** `db:verify:pages` (revision fields, restore, recent list, constraints), `db:verify:entities` (migration `0021`), and `scripts/qa/revisions-qa.mjs` in a browser.
+
+## 11f. Draft and published content, and preview
+
+Content is either **published** (what visitors see) or a **draft** (what an editor saved but has not published). The public website reads only published content. A signed-in admin can **preview** the drafts on the real public pages.
+
+**What has drafts.** The sections of the pages that have their own address (Home, About, Works, Blog, Contact) and the sections of every service, case study and article. Saving such a section writes a draft; nothing the public reads changes, the content version does not move and no revision is written. **What does not:** copy used on several pages (the shared page, the service, case study and article page labels) is published as soon as it is saved (its screen says "Save section", not "Save draft"); a page's search settings (their own form); switching a section on or off; restoring an earlier version (these act on the published content at once, and a restore removes the section's draft); and the basics of a record that belong to no section (the slug, the featured flag, a service's name, its status).
+
+**Storage.** `content_drafts` (migration `0022`): one row per section with a draft (`scope` `page` or the kind of record, `owner_id`, `section_key`, the content, when and by whom). The published content stays where it was (`page_sections`, the columns and JSON of the records). A draft equal to the published content is removed, so a draft always means a real difference. Deleting a record deletes its drafts (triggers). The version token of a section being edited is the draft's own `updated_at` once there is a draft, the published one's before that, so two editors cannot overwrite each other's draft.
+
+**What the admin does** (all server-side checked, same-origin and admin only, each one audited):
+
+| Action | Where | What happens |
+|---|---|---|
+| Save draft | section editor, or the full form of a record | The content passes the section's strict schema and, for a record, the whole record's schema with every other draft applied, plus the references. It is stored as a draft. |
+| Preview draft | overview and section screens | Opens the public address with `?preview=1` in a new tab. |
+| Publish this section / Publish changes | section editor / overview | Each draft is written into the published content through the ordinary checked save (checked again, atomic, kept as a revision with who and when), then the draft is deleted. A draft that no longer passes (a picture was deleted since) stays a draft and is reported; the others are published. |
+| Discard draft(s) | section editor / overview (asks first) | The draft is deleted; the published content is untouched. |
+| Publish / Unpublish a page | page screen | `pages.status`. A page that is a draft answers "not found" to visitors and is left out of the sitemap; an admin can still preview it. Unpublishing asks first and says what happens. **Home cannot be unpublished.** |
+| Publish / Unpublish a record | record overview and Basics and publishing | The existing status. Publishing a record also publishes its drafts, and the whole page as the editor sees it must pass the checks first. |
+
+**The full form of a record** (Basics and publishing) saves like the section editors: each part of the page whose content differs from the published one becomes a draft, and the basics are written at once. It shows the working copy (published plus drafts).
+
+**Preview.** There is no separate preview design. A public route called with `?preview=1` calls `enterPreview()` (`src/lib/server/preview.ts`): **without an admin session the visitor is sent to the sign-in page** and nothing about the draft is revealed; with one, the request draws the draft content through the same route, components and styles. For the pages with an address the loader is told to apply the page's drafts (`loadPage(..., { drafts: true })`); because components deep in the tree load their own content, the flag is per request (React cache) and not a parameter. For services, case studies and articles the record is read as an editor sees it (published record plus drafts), turned back into the row the public mapper expects, and handed to the same mapper the public page uses (`mapServiceRow`, `mapCaseStudy`, `mapBlogPost`). The only addition is a thin fixed "Preview" bar. Previews are never cached: the Worker's page cache is skipped for requests with a query string or an admin session.
+
+**Verification.** `db:verify:pages` (draft save, conflict, equal-to-published, publish with revision, discard, a broken draft, page status, constraints, triggers) and `scripts/qa/drafts-qa.mjs` in a browser.
+
+### Header menu labels (shared)
+
+The words of the header's Services dropdown that are not links, the button's label ("Services", desktop header and mobile menu) and the small heading above the cards ("Core departments"), are the shared section `header` of type `header_labels` (migration `0023`, `src/lib/cms/sections/header-labels.ts`), edited under Pages → Shared across pages → Header menu labels and drawn by `Nav` and `MobileNav` through `SharedContentProvider`. They were hard-coded before the full CMS audit (`docs/FULL-CMS-QA.md`). The links, cards, promo and columns of the same dropdown remain in the Navigation editor.
 
 ## 12. Validation strategy
 

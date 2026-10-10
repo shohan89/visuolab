@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type Re
 import { createPortal } from "react-dom";
 import { newTabProps, useNavigation } from "@/components/site/NavigationProvider";
 import { useSiteConfig } from "@/components/site/SiteConfigProvider";
+import { useSharedContent } from "@/components/site/SharedContentProvider";
 import { st } from "@/lib/css";
 import { prefersReducedMotion } from "@/lib/motion/scroll";
 import { useLenis } from "@/components/motion/SiteMotion";
@@ -17,6 +18,7 @@ import Brand from "./Brand";
  */
 export default function MobileNav({ open, onClose, returnFocusTo }: { open: boolean; onClose: () => void; returnFocusTo: RefObject<HTMLButtonElement | null> }) {
   const site = useSiteConfig();
+  const { header } = useSharedContent();
   const { primary, cta, promo, megaColumns } = useNavigation();
   const lenis = useLenis();
   const panel = useRef<HTMLDivElement>(null);
@@ -114,7 +116,7 @@ export default function MobileNav({ open, onClose, returnFocusTo }: { open: bool
           style={st({ "--i": i++ })}
           onClick={() => setSubOpen((v) => !v)}
         >
-          Services<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+          {header.servicesLabel}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
         </button>
         <div className="mnav-sub" id="mnav-svc" hidden={!subOpen}>
           {megaColumns.map((g, gi) => (

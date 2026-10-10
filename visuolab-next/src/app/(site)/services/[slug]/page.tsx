@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import { notFound, permanentRedirect } from "next/navigation";
+import PreviewBar from "@/components/site/PreviewBar";
+import { enterPreview } from "@/lib/server/preview";
 import JsonLd from "@/components/site/JsonLd";
+import { getServicePreview } from "@/lib/server/entity-preview";
 import ServicePage from "@/components/site/service/ServicePage";
 import { getAdmin } from "@/lib/server/auth";
 import { getHiddenSections, getServiceBySlug, getSlugRedirect } from "@/lib/server/cms";
@@ -13,10 +16,12 @@ import { serviceSeo } from "@/lib/server/seo";
 export const dynamic = "force-dynamic";
 
 type Props = { params: Promise<{ slug: string }> };
+type Page = Props & { searchParams: Promise<Record<string, string | string[] | undefined>> };
 
 /** Published services for everybody. Drafts and archived ones are opened only for a signed-in admin, as a preview. */
-async function load(slug: string) {
+async function load(slug: string, draft = false) {
   const db = getDb();
+  if (draft) { const p = await getServicePreview(slug); if (p) return { service: p, preview: true }; } // an admin's preview: the page with its draft changes
   const live = await getServiceBySlug(db, slug);
   if (live) return { service: live, preview: false };
   const redirectTo = await getSlugRedirect(db, "service", slug);
@@ -34,14 +39,16 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return service ? (await serviceSeo(service, !!preview)).metadata : {};
 }
 
-export default async function ServiceRoute({ params }: Props) {
-  const { service, redirectTo, preview } = await load((await params).slug);
+export default async function ServiceRoute({ params, searchParams }: Page) {
+  const draft = await enterPreview(await searchParams);
+  const { service, redirectTo, preview } = await load((await params).slug, draft);
   if (redirectTo) permanentRedirect(`/services/${redirectTo}`);
   if (!service) notFound();
   const [seo, { content, enabled }, logos, reviews, rating, hidden] = await Promise.all([serviceSeo(service, !!preview), getPage("service_detail"), getLogoSeeds(), getReviewSeeds(), getRating(), getHiddenSections(getDb(), "service", service.slug)]);
   return (
     <>
       <JsonLd nodes={seo.jsonLd} />
+      {draft && <PreviewBar what="this service with its draft changes" back="/admin/services" />}
       <ServicePage service={service} hidden={hidden} chrome={{ rating, logos: enabled.logos ? { content: content.logos, items: logos } : null, reviews: enabled.reviews ? { content: content.reviews, items: reviews } : null }} />
     </>
   );

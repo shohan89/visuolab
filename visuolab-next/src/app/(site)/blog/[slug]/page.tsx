@@ -5,7 +5,10 @@ import { getAdmin } from "@/lib/server/auth";
 import { getBlogPostBySlug, getHiddenSections, getSlugRedirect } from "@/lib/server/cms";
 import { getDb } from "@/lib/server/db";
 import { getPage } from "@/lib/server/cms-pages";
+import PreviewBar from "@/components/site/PreviewBar";
+import { enterPreview } from "@/lib/server/preview";
 import JsonLd from "@/components/site/JsonLd";
+import { getBlogPreview } from "@/lib/server/entity-preview";
 import { blogPostSeo } from "@/lib/server/seo";
 import { getSiteUrl } from "@/lib/site";
 
@@ -13,6 +16,7 @@ import { getSiteUrl } from "@/lib/site";
 export const dynamic = "force-dynamic";
 
 type Props = { params: Promise<{ slug: string }> };
+type Page = Props & { searchParams: Promise<Record<string, string | string[] | undefined>> };
 
 /** Live articles for everybody; drafts, scheduled and archived ones only as a preview for a signed-in admin. */
 async function load(slug: string) {
@@ -35,8 +39,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return (await blogPostSeo(found.post, found.preview)).metadata;
 }
 
-export default async function BlogPostRoute({ params }: Props) {
-  const found = await load((await params).slug);
+export default async function BlogPostRoute({ params, searchParams }: Page) {
+  const draft = await enterPreview(await searchParams);
+  const slug = (await params).slug;
+  const found = (draft ? await getBlogPreview(slug).then((p) => (p ? { ...p, preview: true } : null)) : null) ?? (await load(slug));
   if ("redirectTo" in found && found.redirectTo) permanentRedirect(`/blog/${found.redirectTo}`);
   if (!("post" in found) || !found.post) notFound();
   const { post, related } = found;
@@ -44,6 +50,7 @@ export default async function BlogPostRoute({ params }: Props) {
   return (
     <>
       <JsonLd nodes={seo.jsonLd} />
+      {draft && <PreviewBar what="this article with its draft changes" back="/admin/blog" />}
       <BlogArticle post={post} related={related} url={`${siteUrl}/blog/${post.slug}`} chrome={content.chrome} hidden={hidden} />
     </>
   );

@@ -5,8 +5,9 @@ import { audit } from "@/lib/server/audit";
 import { requireAdmin } from "@/lib/server/auth";
 import {
   categorySlugInUse, checkPostReferences, createCategory, createPost, deleteCategory, deletePost, deleteTag, getPostRecord, listCategories, moveCategory, postReferences,
-  postSlugInUse, publishPost, renameTag, setPostFeatured, setPostStatus, tagSlugInUse, updateCategory, updatePost, visibilityOf,
+  postSlugInUse, publishPost, renameTag, setPostFeatured, setPostStatus, tagSlugInUse, updateCategory, visibilityOf,
 } from "@/lib/server/blog-admin";
+import { publishEntityDrafts, saveRecordAsDrafts, workingRecord } from "@/lib/server/entity-sections";
 import { ipHash, requestHeaders, strictSameOrigin } from "@/lib/server/request";
 import { slugify } from "@/lib/slug";
 import { STATUSES, blogSchema, toErrors, type BlogInput } from "@/lib/validation/blog";
@@ -82,9 +83,13 @@ export async function saveBlogPost(_prev: BlogFormState, formData: FormData): Pr
   const input = parsed.data as BlogInput;
   const ip = await ipHash(h);
   if (existing) {
-    const { oldSlug } = await updatePost(existing.id, input);
-    await audit({ action: "blog.update", userId: admin.id, userEmail: admin.email, entityType: "blog_post", entityId: existing.id, summary: oldSlug ? `Updated "${input.title}"; slug ${oldSlug} to ${input.slug}` : `Updated "${input.title}"`, ipHash: ip });
-    redirect(`${LIST}/${existing.id}/edit?n=saved`);
+    // the full form saves like the section editors: the parts of the page become drafts, the basics (slug, featured flag, ...) are written at once
+    const r = await saveRecordAsDrafts({ kind: "blog_post", id: existing.id, input: input as unknown as Record<string, unknown>, userId: admin.id });
+    if (!r.ok) return fail(r.errors, raw);
+    const oldSlug = r.oldSlug;
+    const drafts = r.drafted.length ? `; draft changes in ${r.drafted.join(", ")}` : "";
+    await audit({ action: r.basics.length ? "blog.update" : "blog.draft", userId: admin.id, userEmail: admin.email, entityType: "blog_post", entityId: existing.id, summary: (oldSlug ? `Updated "${input.title}"; slug ${oldSlug} to ${input.slug}` : `Updated "${input.title}"`) + drafts, ipHash: ip });
+    redirect(`${LIST}/${existing.id}/edit?n=${r.drafted.length || r.cleared.length ? "draft_saved" : "saved"}`);
   }
   const newId = await createPost(input);
   await audit({ action: "blog.create", userId: admin.id, userEmail: admin.email, entityType: "blog_post", entityId: newId, summary: `Created "${input.title}" (${input.status})`, ipHash: ip });
@@ -97,7 +102,7 @@ const idOf = (f: FormData) => {
   const id = text(f, "id");
   return ID_RE.test(id) ? id : null;
 };
-const back = (f: FormData, id: string) => (text(f, "back") === "edit" ? `${LIST}/${id}/edit` : LIST);
+const back = (f: FormData, id: string) => (text(f, "back") === "edit" ? `${LIST}/${id}/edit` : text(f, "back") === "overview" ? `${LIST}/${id}` : LIST);
 
 /** Publish: the saved article must pass the same checks as the form. With a future publish date it is scheduled and appears by itself. */
 export async function publishBlogPost(formData: FormData): Promise<void> {
@@ -105,10 +110,14 @@ export async function publishBlogPost(formData: FormData): Promise<void> {
   const id = idOf(formData);
   const rec = id ? await getPostRecord(id) : null;
   if (!id || !rec) redirect(`${LIST}?n=failed`);
-  const planned = rec.input.publishedAt || localNow();
-  const check = blogSchema.safeParse({ ...rec.input, status: "published", publishedAt: planned });
+  // publishing publishes the draft changes with it, so the whole article as the editor sees it must pass the same checks as the form
+  const working = (await workingRecord("blog_post", id))?.input as BlogInput | undefined;
+  const planned = working?.publishedAt || rec.input.publishedAt || localNow();
+  const check = blogSchema.safeParse({ ...(working ?? rec.input), status: "published", publishedAt: planned });
   const refs = check.success ? await checkPostReferences(check.data) : {};
   if (!check.success || Object.keys(refs).length) redirect(`${LIST}/${id}/edit?n=cannot_publish`);
+  const pub = await publishEntityDrafts({ kind: "blog_post", id, userId: admin.id });
+  if (Object.keys(pub.errors).length) redirect(`${LIST}/${id}/edit?n=cannot_publish`);
   await publishPost(id);
   const scheduled = `${planned}:00.000Z` > new Date().toISOString();
   await audit({ action: scheduled ? "blog.schedule" : "blog.publish", userId: admin.id, userEmail: admin.email, entityType: "blog_post", entityId: id, summary: `${scheduled ? "Scheduled" : "Published"} "${rec.input.title}"${scheduled ? ` for ${planned} UTC` : ""}`, ipHash: await ipHash(h) });

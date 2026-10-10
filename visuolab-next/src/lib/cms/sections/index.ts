@@ -57,6 +57,8 @@ export { logosCollectionSchema, LOGO_STYLES } from "./logos-collection.ts";
 export type { LogosCollectionSection } from "./logos-collection.ts";
 export { siteRatingSchema } from "./site-rating.ts";
 export type { SiteRatingSection } from "./site-rating.ts";
+export { headerLabelsSchema } from "./header-labels.ts";
+export type { HeaderLabelsSection } from "./header-labels.ts";
 export { footerExtrasSchema } from "./footer-extras.ts";
 export type { FooterExtrasSection } from "./footer-extras.ts";
 export { caseStudyChromeSchema } from "./case-study-chrome.ts";

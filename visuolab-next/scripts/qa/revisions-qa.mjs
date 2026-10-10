@@ -30,7 +30,8 @@ const page = await ctx.newPage();
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
 const go = async (path) => { await page.goto(BASE + path); await page.waitForLoadState("networkidle"); await page.waitForTimeout(300); };
-const save = async () => { await Promise.all([page.waitForResponse((r) => r.request().method() === "POST" && r.url().includes("/admin/")), page.getByRole("button", { name: "Save section" }).click()]); await page.waitForTimeout(600); };
+const publishIfDraft = async () => { const pub = page.getByRole("button", { name: "Publish this section" }); if ((await pub.count()) && (await pub.isEnabled())) { await pub.click(); await page.waitForLoadState("networkidle"); await page.waitForTimeout(1500); } }; // a save is a draft; the tests check the published result
+const save = async () => { await Promise.all([page.waitForResponse((r) => r.request().method() === "POST" && r.url().includes("/admin/")), page.getByRole("button", { name: /^Save (draft|section)$/ }).click()]); await page.waitForTimeout(600); await publishIfDraft(); };
 const L = (name) => page.getByLabel(new RegExp("^" + name + "( optional)?$"));
 const heroContent = () => JSON.parse(sql("SELECT content FROM page_sections WHERE id = 'sec_home_hero'")[0].content);
 const caseTitle = () => sql(`SELECT title FROM case_studies WHERE id = '${CASE}'`)[0].title;

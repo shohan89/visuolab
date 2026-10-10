@@ -61,7 +61,7 @@ if (!readOnly) {
 const WANTED = ["users", "sessions", "services", "case_studies", "case_study_images", "blog_posts", "blog_categories", "blog_tags", "blog_post_tags", "contact_submissions", "media", "site_settings", "navigation_items", "integrations", "audit_logs"];
 const tables = q("SELECT name FROM sqlite_master WHERE type = 'table'").map((t) => t.name);
 check("all 15 requested tables exist", WANTED.every((t) => tables.includes(t)), WANTED.filter((t) => !tables.includes(t)).join(",") || "ok");
-check("extra tables are only the join tables and helpers", tables.filter((t) => !WANTED.includes(t) && !/^(sqlite_|_cf_|d1_migrations)/.test(t)).sort().join(",") === "app_meta,entity_hidden_sections,entity_section_revisions,integration_events,page_section_refs,page_section_revisions,page_section_types,page_sections,page_templates,pages,rate_limits,service_case_studies,slug_redirects", tables.filter((t) => !WANTED.includes(t) && !/^(sqlite_|_cf_|d1_migrations)/.test(t)).sort().join(","));
+check("extra tables are only the join tables and helpers", tables.filter((t) => !WANTED.includes(t) && !/^(sqlite_|_cf_|d1_migrations)/.test(t)).sort().join(",") === "app_meta,content_drafts,entity_hidden_sections,entity_section_revisions,integration_events,page_section_refs,page_section_revisions,page_section_types,page_sections,page_templates,pages,rate_limits,service_case_studies,slug_redirects", tables.filter((t) => !WANTED.includes(t) && !/^(sqlite_|_cf_|d1_migrations)/.test(t)).sort().join(","));
 const cols = (t) => q(`PRAGMA table_info("${t}")`).map((c) => c.name);
 for (const t of ["services", "case_studies", "blog_posts", "blog_categories", "blog_tags", "media"]) {
   const need = ["id", "slug", "title", "status", "created_at", "updated_at", "published_at"];

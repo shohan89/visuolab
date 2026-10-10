@@ -36,7 +36,8 @@ async function build(): Promise<MetadataRoute.Sitemap> {
     works: newest(cases.map((c) => c.updatedAtIso)),
     blog: newest(posts.map((p) => p.updatedAtIso ?? p.publishedAtIso)),
   } as Record<string, string | undefined>;
-  const fixed = SEO_PAGES.filter((k) => !cfg.seo.pages[k].noindex).map((k) => ({
+  const unpublished = new Set(((await db.prepare("SELECT template FROM pages WHERE status <> 'published'").all<{ template: string }>()).results ?? []).map((r) => r.template)); // a page taken off the website is not listed
+  const fixed = SEO_PAGES.filter((k) => !cfg.seo.pages[k].noindex && !unpublished.has(k)).map((k) => ({
     url: `${site}${PATHS[k]}`,
     ...(changed[k] ? { lastModified: changed[k] } : {}),
     changeFrequency: (k === "blog" || k === "home" ? "weekly" : "monthly") as "weekly" | "monthly",

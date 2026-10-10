@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import PreviewBar from "@/components/site/PreviewBar";
+import { enterPreview, requirePublished } from "@/lib/server/preview";
 import JsonLd from "@/components/site/JsonLd";
 import { fixedPageSeo } from "@/lib/server/seo";
 import { getCaseTiles, getPage } from "@/lib/server/cms-pages";
@@ -19,13 +21,16 @@ export async function generateMetadata(): Promise<Metadata> {
  * Section type -> component:  about_hero, case_mosaic -> AboutHeroRun · principles_list -> AboutPrinciples · mission_vision -> AboutMission ·
  * timeline -> AboutStory · manifesto -> AboutManifesto · office_clocks -> AboutPlaces · faq_accordion, open_roles -> AboutFaqRun.
  */
-export default async function AboutPage() {
+export default async function AboutPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const preview = await enterPreview(await searchParams);
   const seo = await fixedPageSeo("about");
-  const { content, enabled } = await getPage("about");
+  const { content, enabled, page } = await getPage("about");
+  await requirePublished("about", page?.status);
   const tiles = enabled.mosaic ? await getCaseTiles(content.mosaic.caseIds) : null;
   return (
     <>
       <JsonLd nodes={seo.jsonLd} />
+      {preview && <PreviewBar what="About with its draft changes" back="/admin/pages/about" />}
       <AboutHeroRun content={enabled.hero ? content.hero : null} tiles={tiles} />
       {enabled.principles && <AboutPrinciples content={content.principles} />}
       {enabled.mission && <AboutMission content={content.mission} />}

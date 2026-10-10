@@ -4,6 +4,7 @@ import { publishService } from "@/actions/services";
 import ServiceForm from "@/components/admin/ServiceForm";
 import SubmitButton from "@/components/admin/SubmitButton";
 import { requireAdmin } from "@/lib/server/auth";
+import { workingRecord } from "@/lib/server/entity-sections";
 import { getEnv } from "@/lib/server/db";
 import { caseOptions, getServiceRecord, mediaOptions } from "@/lib/server/services-admin";
 
@@ -16,7 +17,8 @@ export default async function EditServicePage({ params }: { params: Promise<{ id
   const rec = await getServiceRecord((await params).id);
   if (!rec) notFound();
   const [media, cases] = await Promise.all([mediaOptions(), caseOptions()]);
-  const { input } = rec;
+  const working = await workingRecord("service", rec.id); // the published record with its draft changes applied: what the form edits
+  const input = (working?.input ?? rec.input) as typeof rec.input;
   return (
     <>
       <div className="page-head">

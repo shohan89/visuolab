@@ -4,6 +4,7 @@ import { publishBlogPost } from "@/actions/blog";
 import BlogForm from "@/components/admin/BlogForm";
 import SubmitButton from "@/components/admin/SubmitButton";
 import { requireAdmin } from "@/lib/server/auth";
+import { workingRecord } from "@/lib/server/entity-sections";
 import { allTagTitles, categoryOptions, getPostRecord, otherPosts, visibilityOf } from "@/lib/server/blog-admin";
 import { getEnv } from "@/lib/server/db";
 import { mediaOptions } from "@/lib/server/services-admin";
@@ -18,7 +19,8 @@ export default async function EditArticlePage({ params }: { params: Promise<{ id
   const rec = await getPostRecord(id);
   if (!rec) notFound();
   const [media, categories, others, tagSuggestions] = await Promise.all([mediaOptions(), categoryOptions(), otherPosts(id), allTagTitles()]);
-  const { input } = rec;
+  const working = await workingRecord("blog_post", id); // the published record with its draft changes applied: what the form edits
+  const input = (working?.input ?? rec.input) as typeof rec.input;
   const visibility = visibilityOf(input.status, rec.publishedAt);
   const future = !!input.publishedAt && `${input.publishedAt}:00.000Z` > new Date().toISOString();
   return (

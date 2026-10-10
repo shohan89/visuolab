@@ -1,9 +1,10 @@
 import { notFound } from "next/navigation";
 import Link from "@/components/site/ui/Link";
-import { restoreSection, saveSection } from "@/actions/cms-pages";
+import { discardSectionAction, publishSectionAction, restoreSection, saveSection } from "@/actions/cms-pages";
 import SectionEditor from "@/components/admin/SectionEditor";
 import { fieldsFor } from "@/lib/cms/describe";
 import { SECTION_TYPES, TEMPLATES, slotOf, templateFromParam, templateSlug } from "@/lib/cms/registry";
+import { hasDrafts } from "@/lib/cms/store";
 import { requireAdmin } from "@/lib/server/auth";
 import { adminRevisions, adminSection } from "@/lib/server/cms-admin";
 import { caseOptions, mediaOptions } from "@/lib/server/services-admin";
@@ -29,13 +30,14 @@ export default async function SectionAdmin({ params }: { params: Promise<{ page:
       <div className="page-head">
         <div>
           <h1>{slot.name} <span className="badge">{SECTION_TYPES[slot.type].label}</span></h1>
-          <p className="admin-sub"><Link href={back}>← {def.label}</Link>{def.route && slot.anchor ? <> · <a href={`${def.route}#${slot.anchor}`} target="_blank" rel="noopener">View on the page ↗</a></> : null}{row && !row.enabled ? " · hidden on the website" : ""}</p>
+          <p className="admin-sub"><Link href={back}>← {def.label}</Link>{def.route && slot.anchor ? <> · <a href={`${def.route}#${slot.anchor}`} target="_blank" rel="noopener">View on the page ↗</a></> : null}{row && !row.enabled ? " · hidden on the website" : ""}{row?.draft ? " · has a draft" : ""}</p>
         </div>
+        {def.route && hasDrafts(template) && <div className="head-actions"><a className="btn" href={`${def.route}?preview=1${slot.anchor ? `#${slot.anchor}` : ""}`} target="_blank" rel="noopener">Preview draft ↗</a></div>}
       </div>
       {!row ? (
         <p className="form-errors" role="status"><b>This section is not in the database yet.</b> The website shows its built-in text. Run <code>npm run db:seed:pages:remote</code>, then edit it here.</p>
       ) : (
-        <SectionEditor action={saveSection} restoreAction={restoreSection} target={{ template, key }} fields={fields} initial={row.content} updatedAt={row.updatedAt} damaged={row.damaged} media={media} cases={cases} revisions={revisions.map((r) => ({ id: r.id, savedAt: r.savedAt, replacedAt: r.replacedAt, by: r.by, kind: r.kind, changedFields: r.changedFields, content: r.content }))} />
+        <SectionEditor action={saveSection} restoreAction={restoreSection} {...(hasDrafts(template) ? { drafts: { has: row.draft, publish: publishSectionAction, discard: discardSectionAction } } : {})} target={{ template, key }} fields={fields} initial={row.content} updatedAt={row.updatedAt} damaged={row.damaged} media={media} cases={cases} revisions={revisions.map((r) => ({ id: r.id, savedAt: r.savedAt, replacedAt: r.replacedAt, by: r.by, kind: r.kind, changedFields: r.changedFields, content: r.content }))} />
       )}
     </>
   );

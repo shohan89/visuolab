@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, type ReactNode } from "react";
-import type { FooterExtrasSection } from "@/lib/cms/sections";
+import type { FooterExtrasSection, HeaderLabelsSection } from "@/lib/cms/sections";
 
 /**
  * The copy shared by every page that lives in the page CMS (the `shared` page): the closing call to action and the footer's extras, with the
@@ -18,6 +18,8 @@ export type SharedContent = {
     floaters: { src: string; alt: string }[];
   };
   footer: FooterExtrasSection;
+  /** The words of the header's Services dropdown that are not links. */
+  header: HeaderLabelsSection;
 };
 
 const Ctx = createContext<SharedContent | null>(null);

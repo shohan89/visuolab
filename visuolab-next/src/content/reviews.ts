@@ -1,5 +1,5 @@
 /* The five client reviews used by the reviews carousel (same list on Home, Works and every service page). */
-export type ReviewSeed = { avatar: string; company: string; dot?: string; quote: string; name: string; role: string; city: string };
+export type ReviewSeed = { avatar: string; /** the picture's own description; empty means decoration */ avatarAlt?: string; company: string; dot?: string; quote: string; name: string; role: string; city: string };
 
 export const reviews: ReviewSeed[] = [
   { avatar: "/assets/people/maya.webp", company: "Orbit", quote: "They tailor their solutions to our specific needs and goals.", name: "Maya Rao", role: "Head of Product, Orbit", city: "New York, NY" },

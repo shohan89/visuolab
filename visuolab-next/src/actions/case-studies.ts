@@ -4,8 +4,9 @@ import { redirect } from "next/navigation";
 import { audit } from "@/lib/server/audit";
 import { requireAdmin } from "@/lib/server/auth";
 import {
-  caseReferences, caseSlugInUse, checkCaseReferences, createCaseStudy, deleteCaseStudy, getCaseRecord, moveCaseStudy, setCaseFeatured, setCaseStatus, updateCaseStudy,
+  caseReferences, caseSlugInUse, checkCaseReferences, createCaseStudy, deleteCaseStudy, getCaseRecord, moveCaseStudy, setCaseFeatured, setCaseStatus,
 } from "@/lib/server/case-studies-admin";
+import { publishEntityDrafts, saveRecordAsDrafts, workingRecord } from "@/lib/server/entity-sections";
 import { ipHash, requestHeaders, strictSameOrigin } from "@/lib/server/request";
 import { slugify } from "@/lib/slug";
 import { STATUSES, caseStudySchema, toErrors, type CaseStudyInput } from "@/lib/validation/case-study";
@@ -92,9 +93,13 @@ export async function saveCaseStudy(_prev: CaseFormState, formData: FormData): P
   const input = parsed.data as CaseStudyInput;
   const ip = await ipHash(h);
   if (existing) {
-    const { oldSlug } = await updateCaseStudy(existing.id, input);
-    await audit({ action: "case.update", userId: admin.id, userEmail: admin.email, entityType: "case_study", entityId: existing.id, summary: oldSlug ? `Updated "${input.clientName}"; slug ${oldSlug} to ${input.slug}` : `Updated "${input.clientName}"`, ipHash: ip });
-    redirect(`${LIST}/${existing.id}/edit?n=saved`);
+    // the full form saves like the section editors: the parts of the page become drafts, the basics (slug, featured flag, ...) are written at once
+    const r = await saveRecordAsDrafts({ kind: "case_study", id: existing.id, input: input as unknown as Record<string, unknown>, userId: admin.id });
+    if (!r.ok) return fail(r.errors, raw);
+    const oldSlug = r.oldSlug;
+    const drafts = r.drafted.length ? `; draft changes in ${r.drafted.join(", ")}` : "";
+    await audit({ action: r.basics.length ? "case.update" : "case.draft", userId: admin.id, userEmail: admin.email, entityType: "case_study", entityId: existing.id, summary: (oldSlug ? `Updated "${input.clientName}"; slug ${oldSlug} to ${input.slug}` : `Updated "${input.clientName}"`) + drafts, ipHash: ip });
+    redirect(`${LIST}/${existing.id}/edit?n=${r.drafted.length || r.cleared.length ? "draft_saved" : "saved"}`);
   }
   const newId = await createCaseStudy(input);
   await audit({ action: "case.create", userId: admin.id, userEmail: admin.email, entityType: "case_study", entityId: newId, summary: `Created "${input.clientName}" (${input.status})`, ipHash: ip });
@@ -107,7 +112,7 @@ const idOf = (f: FormData) => {
   const id = text(f, "id");
   return ID_RE.test(id) ? id : null;
 };
-const back = (f: FormData, id: string) => (text(f, "back") === "edit" ? `${LIST}/${id}/edit` : LIST);
+const back = (f: FormData, id: string) => (text(f, "back") === "edit" ? `${LIST}/${id}/edit` : text(f, "back") === "overview" ? `${LIST}/${id}` : LIST);
 
 /** Publish: the stored content must pass the same checks as the form, so an incomplete draft cannot go live. */
 export async function publishCaseStudy(formData: FormData): Promise<void> {
@@ -115,11 +120,15 @@ export async function publishCaseStudy(formData: FormData): Promise<void> {
   const id = idOf(formData);
   const rec = id ? await getCaseRecord(id) : null;
   if (!id || !rec) redirect(`${LIST}?n=failed`);
-  const check = caseStudySchema.safeParse({ ...rec.input, status: "published" });
+  // publishing publishes the draft changes with it, so the whole page as the editor sees it must pass the same checks as the form
+  const working = await workingRecord("case_study", id);
+  const check = caseStudySchema.safeParse({ ...(working?.input ?? rec.input), status: "published" });
   const refs = check.success ? await checkCaseReferences(check.data) : {};
   if (!check.success || Object.keys(refs).length) redirect(`${LIST}/${id}/edit?n=cannot_publish`);
+  const pub = await publishEntityDrafts({ kind: "case_study", id, userId: admin.id });
+  if (Object.keys(pub.errors).length) redirect(`${LIST}/${id}/edit?n=cannot_publish`);
   await setCaseStatus(id, "published");
-  await audit({ action: "case.publish", userId: admin.id, userEmail: admin.email, entityType: "case_study", entityId: id, summary: `Published "${rec.input.clientName}"`, ipHash: await ipHash(h) });
+  await audit({ action: "case.publish", userId: admin.id, userEmail: admin.email, entityType: "case_study", entityId: id, summary: `Published "${rec.input.clientName}"${pub.published.length ? ` with the changes in ${pub.published.join(", ")}` : ""}`, ipHash: await ipHash(h) });
   redirect(`${back(formData, id)}?n=published`);
 }
 

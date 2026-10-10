@@ -2,7 +2,7 @@ import "server-only";
 import { getDb } from "./db";
 
 /** Actions that cannot change what a public page shows. Every other admin action bumps the content version (see src/worker.ts). */
-const NO_PUBLIC_EFFECT = /^(login|logout|submission|integration.test|settings.test)/;
+const NO_PUBLIC_EFFECT = /^(login|logout|submission|integration.test|settings.test)|\.draft(\.|$)/;
 
 /** Appends one row to audit_logs. Never throws: a logging problem must not block sign-in or an admin action. */
 export async function audit(entry: {

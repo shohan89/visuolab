@@ -66,17 +66,8 @@ export async function getCaseStudyBySlug(db: Db, slug: string, opts: { includeUn
   return mapCaseStudy(c, images, media, published);
 }
 
-export async function getServices(db: Db, opts: { publishedOnly?: boolean; slug?: string } = {}): Promise<ServiceSeed[]> {
-  const media = await mediaUrls(db);
-  const conds = [...(opts.publishedOnly ? [STATUS] : []), ...(opts.slug ? ["slug = ?1"] : [])];
-  const where = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
-  const services = await all(db, `SELECT * FROM services ${where} ORDER BY position, slug`, ...(opts.slug ? [opts.slug] : []));
-  const links = await all(
-    db,
-    `SELECT l.service_id, l.position, c.slug, c.card_image_id, c.card_image_alt, c.card_tags_json, c.showcase_json
-       FROM service_case_studies l JOIN case_studies c ON c.id = l.case_study_id ${opts.publishedOnly ? "WHERE c.status = 'published'" : ""} ORDER BY l.service_id, l.position`,
-  );
-  return services.map((v) => {
+/** One services row (and the case study cards linked to it) as the page model ServicePage draws. Also used by the admin preview with a row built from a draft. */
+export function mapServiceRow(v: Row, links: Row[], media: Record<string, string>): ServiceSeed {
     const shots = parse<{ alt: string; width?: number; height?: number; priority?: boolean; lazy?: boolean }[]>(v.hero_shots_json);
     const ids = [v.hero_image_a_id, v.hero_image_b_id];
     const problems = parse<{ label: string; title: string; items: ServiceSeed["problems"]["items"] }>(v.problems_json);
@@ -102,7 +93,19 @@ export async function getServices(db: Db, opts: { publishedOnly?: boolean; slug?
         }),
       },
     };
-  });
+}
+
+export async function getServices(db: Db, opts: { publishedOnly?: boolean; slug?: string } = {}): Promise<ServiceSeed[]> {
+  const media = await mediaUrls(db);
+  const conds = [...(opts.publishedOnly ? [STATUS] : []), ...(opts.slug ? ["slug = ?1"] : [])];
+  const where = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
+  const services = await all(db, `SELECT * FROM services ${where} ORDER BY position, slug`, ...(opts.slug ? [opts.slug] : []));
+  const links = await all(
+    db,
+    `SELECT l.service_id, l.position, c.slug, c.card_image_id, c.card_image_alt, c.card_tags_json, c.showcase_json
+       FROM service_case_studies l JOIN case_studies c ON c.id = l.case_study_id ${opts.publishedOnly ? "WHERE c.status = 'published'" : ""} ORDER BY l.service_id, l.position`,
+  );
+  return services.map((v) => mapServiceRow(v, links, media));
 }
 
 /** Articles visitors can read: published, and not scheduled for later. */

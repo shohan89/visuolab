@@ -397,3 +397,6 @@ dialog.picker::backdrop{background:rgba(20,21,26,.55)}
 .confirm-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap}
 .rev-actions{display:flex;gap:8px;flex-wrap:wrap}
 .cms-versions li{display:flex;justify-content:space-between;gap:14px;align-items:center;flex-wrap:wrap}
+/* ---- draft and published ---- */
+.draft-banner{border:1px solid #d9a441;background:rgba(217,164,65,.12);border-radius:10px;padding:12px 14px;margin:0 0 14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.confirm-form{display:inline}

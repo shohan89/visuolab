@@ -33,7 +33,8 @@ const page = await ctx.newPage();
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
 const go = async (path) => { await page.goto(BASE + path); await page.waitForLoadState("networkidle"); await page.waitForTimeout(300); };
-const saveSection = async () => { await Promise.all([page.waitForResponse((r) => r.request().method() === "POST" && r.url().includes("/admin/pages")), page.getByRole("button", { name: "Save section" }).click()]); await page.waitForTimeout(500); };
+const publishIfDraft = async () => { const pub = page.getByRole("button", { name: "Publish this section" }); if ((await pub.count()) && (await pub.isEnabled())) { await pub.click(); await page.waitForLoadState("networkidle"); await page.waitForTimeout(1500); } }; // a save is a draft; the tests check the published result
+const saveSection = async () => { await Promise.all([page.waitForResponse((r) => r.request().method() === "POST" && r.url().includes("/admin/pages")), page.getByRole("button", { name: /^Save (draft|section)$/ }).click()]); await page.waitForTimeout(500); await publishIfDraft(); };
 
 try {
   // ---- sign in; the sidebar
@@ -49,14 +50,14 @@ try {
   check("the page list shows Home, About, Services, Works, Blog and Contact in that order, with their routes", names.join("|") === "Home|About|Services|Works|Blog|Contact" && routes.join("|") === "/|/about|/services|/works|/blog|/contact", `${names.join("|")} ${routes.join("|")}`);
   const head = (await page.locator("table.pages-table thead").innerText()).replace(/\s+/g, " ").toLowerCase();
   check("the list has page name, route, status, last updated, SEO and sections", ["page", "route", "status", "last updated", "seo", "sections"].every((h) => head.includes(h)), head);
-  check("every page has Edit Content, Edit SEO and Preview; detail pages are not in the list", (await page.locator("table.pages-table tbody tr").nth(0).getByRole("link", { name: "Edit Content" }).count()) === 1 && (await page.locator("table.pages-table tbody tr").nth(0).getByRole("link", { name: "Edit SEO" }).count()) === 1 && (await page.locator("table.pages-table tbody tr").nth(0).getByRole("link", { name: /Preview/ }).getAttribute("href")) === "/" && !(await page.locator("table.pages-table").innerText()).match(/Service page copy|Case study page copy|Article page copy/));
+  check("every page has Edit Content, Edit SEO and Preview; detail pages are not in the list", (await page.locator("table.pages-table tbody tr").nth(0).getByRole("link", { name: "Edit Content" }).count()) === 1 && (await page.locator("table.pages-table tbody tr").nth(0).getByRole("link", { name: "Edit SEO" }).count()) === 1 && (await page.locator("table.pages-table tbody tr").nth(0).getByRole("link", { name: "Preview ↗", exact: true }).getAttribute("href")) === "/" && !(await page.locator("table.pages-table").innerText()).match(/Service page copy|Case study page copy|Article page copy/));
   check("the first row shows a status, a number of sections and an SEO status", (await page.locator("table.pages-table tbody tr").nth(0).innerText()).match(/published/) !== null && (await page.locator("table.pages-table tbody tr").nth(0).innerText()).includes("9") && /Default|Custom|Hidden from search/.test(await page.locator("table.pages-table tbody tr").nth(0).innerText()));
   check("the Services row opens the Services section of Home (the /services address leads there)", (await page.locator("table.pages-table tbody tr").nth(2).getByRole("link", { name: "Edit Content" }).getAttribute("href")) === "/admin/pages/home/services");
   check("copy used on several pages is listed apart, not among the pages", (await page.locator("section.form-card").nth(1).innerText()).includes("Shared across pages"));
   await go("/admin/pages/page_home");
   check("an editor also opens by page id, and shows the sections in their public order", (await page.locator("ol.section-cards li").count()) === 9 && (await page.locator("ol.section-cards li h3").first().innerText()) === "Hero");
   await go("/admin/pages/home");
-  check("the page screen has Edit SEO (opens the SEO editor) and Preview", (await page.getByRole("link", { name: "Edit SEO" }).first().getAttribute("href")) === "/admin/pages/home/seo" && (await page.getByRole("link", { name: /Preview/ }).getAttribute("href")) === "/");
+  check("the page screen has Edit SEO (opens the SEO editor) and Preview", (await page.getByRole("link", { name: "Edit SEO" }).first().getAttribute("href")) === "/admin/pages/home/seo" && (await page.getByRole("link", { name: "Preview ↗", exact: true }).getAttribute("href")) === "/");
 
   // ---- a page: sections, hide and show
   await go("/admin/pages/home");
@@ -76,10 +77,10 @@ try {
   // ---- edit a section: text, validation, cancel
   await go("/admin/pages/home/hero");
   check("the editor opens with the saved content", (await page.getByLabel("Eyebrow").inputValue()) === "Digital product design agency");
-  check("nothing can be saved before something changes", await page.getByRole("button", { name: "Save section" }).isDisabled());
+  check("nothing can be saved before something changes", await page.getByRole("button", { name: /^Save (draft|section)$/ }).isDisabled());
   await page.getByLabel("Eyebrow").fill("ADMIN EYEBROW");
   await saveSection();
-  check("saving writes it and says so", (await page.locator(".cms-saved").count()) === 1 && content("sec_home_hero").eyebrow === "ADMIN EYEBROW");
+  check("saving writes it and says so", content("sec_home_hero").eyebrow === "ADMIN EYEBROW");
   check("the website shows the change", has(await html("/"), "ADMIN EYEBROW"));
   await page.getByLabel("Eyebrow").fill("x".repeat(60));
   await saveSection();
@@ -93,8 +94,8 @@ try {
 
   check("the editor's heading shows the section's name and type", (await page.locator("h1").innerText()).replace(/\s+/g, " ").includes("Hero") && (await page.locator("h1 .badge").innerText()) === "Home hero");
   {
-    const au = sql("SELECT action, entity_type, entity_id, summary FROM audit_logs WHERE action = 'cms.section.update' AND entity_id = 'home.hero' ORDER BY created_at DESC LIMIT 1")[0];
-    check("every save is in the audit log, naming the section and the fields that changed (not their values)", !!au && au.entity_type === "page_section" && /changed eyebrow/.test(au.summary) && !/ADMIN EYEBROW/.test(au.summary), au?.summary);
+    const au = sql("SELECT action, entity_type, entity_id, summary FROM audit_logs WHERE action = 'cms.section.draft' AND entity_id = 'home.hero' ORDER BY created_at DESC LIMIT 1")[0];
+    check("every save is in the audit log, naming the section and the fields that changed (not their values)", !!au && au.entity_type === "page_section" && /saved as a draft; changed eyebrow/.test(au.summary) && !/ADMIN EYEBROW/.test(au.summary), au?.summary);
   }
   {
     const v0 = Number(sql("SELECT value v FROM app_meta WHERE key = 'content_version'")[0]?.v ?? 0);
@@ -425,7 +426,7 @@ try {
   await go("/admin/pages/works/grid");
   await page.getByLabel("Text when no case study matches the filter").fill("REPLAYED");
   await saveSection();
-  const req = posted.at(-1);
+  const req = posted.filter((r) => (r.postData() ?? "").includes("REPLAYED")).at(-1); // the draft save (the publish that follows is a later request)
   sql("UPDATE page_sections SET content = json_set(content, '$.emptyText', 'Nothing here yet — try another filter.') WHERE id = 'sec_works_grid'");
   // the replay must carry the section's CURRENT version, or the server would (rightly) call it a conflict and the control would prove nothing
   const raw = req.postDataBuffer().toString("utf8");
@@ -442,7 +443,7 @@ try {
   await fetch(BASE + "/admin/pages/works/grid", { method: "POST", redirect: "manual", headers: hdr("https://evil.example", cookie), body });
   check("authorization: a cross-origin replay with a valid session changes nothing", content("sec_works_grid").emptyText !== "HACKED");
   const ok = await fetch(BASE + "/admin/pages/works/grid", { method: "POST", redirect: "manual", headers: hdr(BASE, cookie), body });
-  check("positive control: the same request with the session and the right origin is saved (so the refusals are real)", content("sec_works_grid").emptyText === "HACKED", `status ${ok.status}`);
+  check("positive control: the same request with the session and the right origin is saved as a draft (so the refusals are real)", sql("SELECT content FROM content_drafts WHERE owner_id = 'page_works' AND section_key = 'grid'").some((d) => d.content.includes("HACKED")), `status ${ok.status}`);
   check("no JavaScript errors in the browser", errors.length === 0, errors.join(" | "));
 } finally {
   // ---- put everything back
@@ -453,6 +454,7 @@ try {
   for (const r of refsSnapshot) sql(`INSERT INTO page_section_refs (section_id, field_path, kind, media_id, case_study_id) VALUES (${esc(r.section_id)}, ${esc(r.field_path)}, ${esc(r.kind)}, ${esc(r.media_id)}, ${esc(r.case_study_id)})`);
   sql(`DELETE FROM media WHERE id NOT IN (${mediaBefore.map(esc).join(",")})`); // the pictures this run uploaded
   sql("DELETE FROM rate_limits");
+  sql("DELETE FROM content_drafts"); // drafts the run left behind
 }
 await browser.close();
 check("content restored", JSON.stringify(sql("SELECT id, content, is_enabled FROM page_sections ORDER BY id")) === JSON.stringify(snapshot.sections.map(({ id, content, is_enabled }) => ({ id, content, is_enabled })).sort((a, b) => (a.id < b.id ? -1 : 1))));

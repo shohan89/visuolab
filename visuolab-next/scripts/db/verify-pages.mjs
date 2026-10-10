@@ -359,7 +359,7 @@ db.exec(`INSERT INTO users (id, email, name, password_hash, role, created_at, up
   const seedSql = readFileSync(join(ROOT, "db", "seed", "pages.sql"), "utf8");
   fresh.exec(seedSql);
   const n = (sql) => fresh.prepare(sql).get().c;
-  check("the page seed applies on a database that has the content seed: 9 pages, 35 sections, with their references", n("SELECT COUNT(*) c FROM pages") === TEMPLATE_NAMES.length && n("SELECT COUNT(*) c FROM page_sections") === 35 && n("SELECT COUNT(*) c FROM page_section_refs") > 20);
+  check("the page seed applies on a database that has the content seed: 9 pages, 36 sections, with their references", n("SELECT COUNT(*) c FROM pages") === TEMPLATE_NAMES.length && n("SELECT COUNT(*) c FROM page_sections") === 36 && n("SELECT COUNT(*) c FROM page_section_refs") > 20);
   let current = true, which = "";
   for (const t of TEMPLATE_NAMES) for (const s of TEMPLATES[t].sections) {
     const row = fresh.prepare("SELECT content, position FROM page_sections WHERE id = ?").get(`sec_${t}_${s.key}`);
@@ -370,7 +370,7 @@ db.exec(`INSERT INTO users (id, email, name, password_hash, role, created_at, up
   fresh.exec("UPDATE page_sections SET content = '{\"edited\":true}' WHERE id = 'sec_home_hero'");
   fresh.exec("DELETE FROM page_sections WHERE id = 'sec_home_logos'");
   fresh.exec(seedSql);
-  check("running the seed again never overwrites an editor's change, and puts back a section that is missing", fresh.prepare("SELECT content FROM page_sections WHERE id = 'sec_home_hero'").get().content === '{"edited":true}' && n("SELECT COUNT(*) c FROM page_sections WHERE id = 'sec_home_logos'") === 1 && n("SELECT COUNT(*) c FROM page_sections") === 35);
+  check("running the seed again never overwrites an editor's change, and puts back a section that is missing", fresh.prepare("SELECT content FROM page_sections WHERE id = 'sec_home_hero'").get().content === '{"edited":true}' && n("SELECT COUNT(*) c FROM page_sections WHERE id = 'sec_home_logos'") === 1 && n("SELECT COUNT(*) c FROM page_sections") === 36);
   fresh.close();
 }
 
@@ -546,6 +546,63 @@ db.exec(`INSERT INTO users (id, email, name, password_hash, role, created_at, up
   check("a page record carries its robots choices", rec.noindex === false && rec.nofollow === false);
 }
 
+
+// ---- draft and published content ---------------------------------------------------------------------------------------------------------
+{
+  // the page and its sections exist as seeded (earlier checks deleted some)
+  db.prepare("INSERT OR IGNORE INTO pages (id, slug, title, status, template, created_at, updated_at) VALUES ('page_works', 'works', 'Works', 'published', 'works', ?, ?)").run(T0, T0);
+  db.prepare("DELETE FROM page_sections WHERE id = 'sec_works_grid'").run();
+  seedSection("works", "grid", 99);
+  const live = (id) => one("SELECT content, updated_at u FROM page_sections WHERE id = ?", id);
+  const drafts = (owner = "page_works") => q("SELECT section_key, content, updated_at FROM content_drafts WHERE scope = 'page' AND owner_id = ?", owner);
+  check("pages with their own address have drafts; copy used on several pages does not", store.hasDrafts("works") && store.hasDrafts("home") && !store.hasDrafts("shared") && !store.hasDrafts("service_detail"));
+  const before = live("sec_works_grid");
+  const d1r = await store.saveSectionDraft(d1, { template: "works", key: "grid", content: { emptyText: "Draft A" }, expectedUpdatedAt: before.u, userId: "u1" });
+  check("saving a draft writes content_drafts and leaves the published section, its version and its revisions alone", d1r.ok && d1r.draft === true && live("sec_works_grid").content === before.content && live("sec_works_grid").u === before.u && drafts().length === 1);
+  check("the public loader never sees a draft; the preview loader does, and lists which sections it drew", (await store.loadPage(d1, "works")).content.grid.emptyText !== "Draft A" && (await store.loadPage(d1, "works", { drafts: true })).content.grid.emptyText === "Draft A" && (await store.loadPage(d1, "works", { drafts: true })).drafted.join() === "grid" && (await store.loadPage(d1, "works")).drafted.length === 0);
+  check("the section list marks the draft and the editor starts from it with the draft's own version token", (await store.listSections(d1, "works")).sections.find((x) => x.key === "grid").draft === true && (await store.readSectionForEdit(d1, "works", "grid")).draft === true && (await store.readSectionForEdit(d1, "works", "grid")).content.emptyText === "Draft A" && (await store.readSectionForEdit(d1, "works", "grid")).updatedAt === d1r.updatedAt);
+  check("the page list counts the draft", (await store.listPages(d1)).find((x) => x.template === "works").drafts === 1);
+  const stale = await store.saveSectionDraft(d1, { template: "works", key: "grid", content: { emptyText: "Draft B" }, expectedUpdatedAt: before.u, userId: "u1" });
+  check("a draft is saved against the draft's own version: the published version's token is a conflict once there is a draft", !stale.ok && stale.kind === "conflict");
+  const bad = await store.saveSectionDraft(d1, { template: "works", key: "grid", content: { emptyText: "" }, expectedUpdatedAt: d1r.updatedAt, userId: "u1" });
+  check("a draft is checked by the same strict schema as a live save", !bad.ok && bad.kind === "invalid" && drafts().length === 1);
+  const d2r = await store.saveSectionDraft(d1, { template: "works", key: "grid", content: { emptyText: "Draft B" }, expectedUpdatedAt: d1r.updatedAt, userId: "u1" });
+  check("saving again replaces the draft and moves its version", d2r.ok && d2r.updatedAt > d1r.updatedAt && drafts().length === 1 && JSON.parse(drafts()[0].content).emptyText === "Draft B");
+  const same = await store.saveSectionDraft(d1, { template: "works", key: "grid", content: JSON.parse(before.content), expectedUpdatedAt: d2r.updatedAt, userId: "u1" });
+  check("content equal to the published content removes the draft", same.ok && same.draft === false && drafts().length === 0 && same.updatedAt === before.u);
+  const shared = await store.saveSectionDraft(d1, { template: "shared", key: "rating", content: { score: "5.0", text: "x" }, expectedUpdatedAt: "x", userId: "u1" });
+  check("a template without drafts refuses them (it publishes on save)", !shared.ok && shared.kind === "invalid");
+  const revBefore = q("SELECT COUNT(*) c FROM page_section_revisions WHERE section_id = 'sec_works_grid'")[0].c;
+  const a1 = await store.saveSectionDraft(d1, { template: "works", key: "grid", content: { emptyText: "Publish me" }, expectedUpdatedAt: before.u, userId: "u1" });
+  const pub = await store.publishPageDrafts(d1, "works", "u1");
+  const revAfter = q("SELECT content, new_content, changed_by, kind FROM page_section_revisions WHERE section_id = 'sec_works_grid' ORDER BY replaced_at DESC, id DESC LIMIT 1")[0];
+  check("publishing writes the draft into the published section through the checked save, keeps a revision (who, previous, new) and deletes the draft", a1.ok && pub.ok && pub.published.join() === "grid" && JSON.parse(live("sec_works_grid").content).emptyText === "Publish me" && drafts().length === 0 && JSON.parse(revAfter.new_content).emptyText === "Publish me" && revAfter.changed_by === "u1" && revAfter.kind === "edit" && q("SELECT COUNT(*) c FROM page_section_revisions WHERE section_id = 'sec_works_grid'")[0].c >= Math.min(10, revBefore + 1));
+  check("publishing with nothing to publish is a no-op", (await store.publishPageDrafts(d1, "works", "u1")).published.length === 0);
+  await store.saveSectionDraft(d1, { template: "works", key: "grid", content: { emptyText: "Throw me away" }, expectedUpdatedAt: live("sec_works_grid").u, userId: "u1" });
+  const gone = await store.discardPageDrafts(d1, "works");
+  check("discarding removes the draft and changes nothing published", gone.join() === "grid" && drafts().length === 0 && JSON.parse(live("sec_works_grid").content).emptyText === "Publish me");
+  // a draft that no longer passes is not published and is reported; the others are
+  db.prepare("INSERT INTO content_drafts (scope, owner_id, section_key, content, updated_at, updated_by) VALUES ('page', 'page_works', 'grid', '{\"emptyText\":5}', '2026-10-09T00:00:00.000Z', 'u1')").run();
+  const broken = await store.publishPageDrafts(d1, "works", "u1");
+  check("a draft that no longer fits its section is not published and is reported; it stays a draft", !broken.ok && !!broken.errors.grid && drafts().length === 1 && JSON.parse(live("sec_works_grid").content).emptyText === "Publish me");
+  check("a broken draft is ignored by the preview loader (the published content is drawn)", (await store.loadPage(d1, "works", { drafts: true })).content.grid.emptyText === "Publish me");
+  await store.discardPageDrafts(d1, "works");
+  // page status
+  const off = await store.setPageStatus(d1, "works", "draft", "u1");
+  check("a page can be unpublished and published again; its status is stored on the page", off.ok && off.changed && one("SELECT status s FROM pages WHERE id = 'page_works'").s === "draft" && (await store.setPageStatus(d1, "works", "published", "u1")).ok && one("SELECT status s FROM pages WHERE id = 'page_works'").s === "published");
+  check("the front page cannot be unpublished, and copy used on several pages has no status", (await store.setPageStatus(d1, "home", "draft", "u1")).kind === "locked" && (await store.setPageStatus(d1, "shared", "draft", "u1")).kind === "locked");
+  rejects("a draft needs a known scope", "INSERT INTO content_drafts (scope, owner_id, section_key, content, updated_at) VALUES ('other', 'x', 'y', '{}', 'z')", /CHECK/);
+  rejects("a draft's content must be a JSON object", "INSERT INTO content_drafts (scope, owner_id, section_key, content, updated_at) VALUES ('page', 'x', 'y', '[1]', 'z')", /CHECK/);
+  rejects("one draft per section", "INSERT INTO content_drafts (scope, owner_id, section_key, content, updated_at) VALUES ('page', 'page_works', 'grid', '{}', 'z'), ('page', 'page_works', 'grid', '{}', 'z')", /UNIQUE|PRIMARY/);
+  db.exec("DELETE FROM content_drafts");
+  // a deleted record takes its drafts with it
+  const post = one("SELECT id FROM blog_posts LIMIT 1").id;
+  db.prepare("INSERT INTO content_drafts (scope, owner_id, section_key, content, updated_at) VALUES ('blog_post', ?, 'intro', '{}', 'z')").run(post);
+  db.prepare("INSERT INTO content_drafts (scope, owner_id, section_key, content, updated_at) VALUES ('page', 'page_home', 'hero', '{}', 'z')").run();
+  db.prepare("DELETE FROM blog_posts WHERE id = ?").run(post);
+  check("deleting a record deletes its drafts, and only its own", q("SELECT COUNT(*) c FROM content_drafts WHERE owner_id = ?", post)[0].c === 0 && q("SELECT COUNT(*) c FROM content_drafts WHERE owner_id = 'page_home'")[0].c === 1);
+  db.exec("DELETE FROM content_drafts");
+}
 
 console.log(`\n${pass}/${pass + fail} checks passed`);
 process.exit(fail ? 1 : 0);

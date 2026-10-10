@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import BlogListing from "@/components/site/blog/BlogListing";
+import PreviewBar from "@/components/site/PreviewBar";
+import { enterPreview, requirePublished } from "@/lib/server/preview";
 import JsonLd from "@/components/site/JsonLd";
 import { getBlogCategories, getBlogPosts } from "@/lib/server/cms";
 import { getDb } from "@/lib/server/db";
@@ -22,11 +24,14 @@ export async function generateMetadata(): Promise<Metadata> {
   return (await load()).seo.metadata;
 }
 
-export default async function BlogRoute() {
-  const [{ posts, topics, seo }, { content, enabled }] = await Promise.all([load(), getPage("blog")]);
+export default async function BlogRoute({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const preview = await enterPreview(await searchParams);
+  const [{ posts, topics, seo }, { content, enabled, page }] = await Promise.all([load(), getPage("blog")]);
+  await requirePublished("blog", page?.status);
   return (
     <>
       <JsonLd nodes={seo.jsonLd} />
+      {preview && <PreviewBar what="Blog with its draft changes" back="/admin/pages/blog" />}
       <BlogListing posts={posts} topics={topics} hero={enabled.hero ? content.hero : null} featuredContent={enabled.featured ? content.featured : null} grid={enabled.grid ? content.grid : null} />
     </>
   );

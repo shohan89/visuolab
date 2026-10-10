@@ -8,6 +8,7 @@
  *  - what is read is checked again, and a section that is missing or no longer valid is replaced by its default, so a page always renders.
  */
 import { defaultContent } from "./defaults.ts";
+import { deleteDrafts, getDrafts, putDraft } from "./drafts.ts";
 import { pageSeoSchema, type PageSeoInput } from "./page-seo.ts";
 import { checkSection, SECTION_TYPES, slotOf, TEMPLATES, templateSlug, type SectionErrors } from "./registry.ts";
 import type { PageContent, PageRecord, PageStatus, PageTemplate, SectionRef, SectionType } from "./types.ts";
@@ -34,15 +35,23 @@ export type LoadedPage<P extends PageTemplate> = {
   enabled: { [K in keyof PageContent<P>]: boolean };
   /** What was replaced by a default and why (for the log, never shown to visitors). */
   issues: string[];
+  /** Sections whose draft was drawn instead of the published content (only with `drafts: true`, i.e. a preview). */
+  drafted: string[];
 };
 
+/** Pages that have their own address have draft and published content; the copy used on several pages is published as soon as it is saved. */
+export const hasDrafts = (template: PageTemplate): boolean => TEMPLATES[template].route !== null;
+
 /** One page with all its sections, each checked; a missing or damaged section is replaced by its default. */
-export async function loadPage<P extends PageTemplate>(db: Db, template: P): Promise<LoadedPage<P>> {
+/** With `drafts: true` (a signed-in admin's preview) the draft of a section is drawn instead of its published content. The public website never passes it. */
+export async function loadPage<P extends PageTemplate>(db: Db, template: P, opts: { drafts?: boolean } = {}): Promise<LoadedPage<P>> {
   const pageRow = await db.prepare("SELECT * FROM pages WHERE template = ?1").bind(template).first<Row>();
   const rows = pageRow
     ? ((await db.prepare("SELECT section_key, section_type, is_enabled, content FROM page_sections WHERE page_id = ?1 ORDER BY position").bind(pageRow.id).all<Row>()).results ?? [])
     : [];
   const byKey = new Map(rows.map((r) => [s(r.section_key), r]));
+  const drafts = opts.drafts && pageRow && hasDrafts(template) ? await getDrafts(db, "page", s(pageRow.id)) : new Map();
+  const drafted: string[] = [];
   const issues: string[] = [];
   const content: Partial<Record<string, unknown>> = {};
   const enabled: Partial<Record<string, boolean>> = {};
@@ -62,11 +71,16 @@ export async function loadPage<P extends PageTemplate>(db: Db, template: P): Pro
         issues.push(`${template}.${slot.key}: content is not JSON; using the default`);
       }
     }
+    const draft = drafts.get(slot.key);
+    if (draft) {
+      const parsed = SECTION_TYPES[slot.type].schema.safeParse(draft.content);
+      if (parsed.success) { value = parsed.data; drafted.push(slot.key); }
+    }
     content[slot.key] = value ?? defaultContent(template, slot.key);
     enabled[slot.key] = slot.canDisable ? !row || row.is_enabled === 1 : true;
   }
   // every key of the template has just been filled from its own schema or its typed default
-  return { page: pageRow ? toPage(pageRow) : null, content: content as PageContent<P>, enabled: enabled as LoadedPage<P>["enabled"], issues };
+  return { page: pageRow ? toPage(pageRow) : null, content: content as PageContent<P>, enabled: enabled as LoadedPage<P>["enabled"], issues, drafted };
 }
 
 /* ---- writing a section --------------------------------------------------------------------------------------------- */
@@ -181,6 +195,92 @@ export async function saveSectionContent(db: Db, input: SaveSectionInput): Promi
   return { ok: true, updatedAt: now, changedFields: changedFields(before, checked.content), refs: checked.refs.length };
 }
 
+/* ---- drafts of a section ---------------------------------------------------------------------------------------------------- */
+
+export type SaveDraftResult = { ok: true; updatedAt: string; changedFields: string[]; draft: boolean } | SaveFailure;
+
+/**
+ * Saves the content of a section as a DRAFT: the same strict schema, the same references, the same version token as a live save, but nothing the
+ * public website reads is changed. The token is the draft's own `updatedAt` once there is a draft, the published section's before that. Content
+ * that equals the published content removes the draft instead.
+ */
+export async function saveSectionDraft(db: Db, input: SaveSectionInput): Promise<SaveDraftResult> {
+  const slot = slotOf(input.template, input.key);
+  if (!slot) return invalid({ form: `The ${input.template} page has no section "${input.key}".` });
+  if (!hasDrafts(input.template)) return invalid({ form: "This copy is used on several pages and is published as soon as it is saved." });
+  const row = await db
+    .prepare("SELECT s.id, s.page_id, s.section_type, s.updated_at, s.content FROM page_sections s JOIN pages p ON p.id = s.page_id WHERE p.template = ?1 AND s.section_key = ?2")
+    .bind(input.template, input.key)
+    .first<Row>();
+  if (!row) return { ok: false, kind: "missing" };
+  if (s(row.section_type) !== slot.type) return invalid({ form: "This section is of a different type than the template says." });
+  const checked = checkSection(input.template, input.key, input.content);
+  if (!checked.ok) return invalid(checked.errors);
+  const refErrors = await checkRefs(db, checked.refs);
+  if (Object.keys(refErrors).length) return invalid(refErrors);
+
+  const owner = s(row.page_id);
+  const draft = (await getDrafts(db, "page", owner)).get(input.key);
+  const token = draft ? draft.updatedAt : s(row.updated_at);
+  if (token !== input.expectedUpdatedAt) return { ok: false, kind: "conflict" };
+
+  let live: unknown = {};
+  try { live = JSON.parse(s(row.content)); } catch { /* damaged: everything differs */ }
+  const changed = changedFields(draft ? draft.content : live, checked.content);
+  if (JSON.stringify(checked.content) === s(row.content)) {
+    if (draft) await deleteDrafts(db, "page", owner, input.key);
+    return { ok: true, updatedAt: s(row.updated_at), changedFields: changed, draft: false };
+  }
+  const stamp = await putDraft(db, "page", owner, input.key, checked.content, input.userId, token);
+  return { ok: true, updatedAt: stamp, changedFields: changed, draft: true };
+}
+
+export type PublishPageResult = { ok: true; published: string[] } | { ok: false; published: string[]; errors: Record<string, SectionErrors | "conflict" | "missing"> };
+
+/**
+ * Publishes the drafts of a page (all of them, or the given sections): each one is written through saveSectionContent, so it is checked again,
+ * kept as a revision and written atomically with its references; the draft is then deleted. A draft that no longer passes (a picture was deleted
+ * since) stays a draft and is reported, the others are published.
+ */
+export async function publishPageDrafts(db: Db, template: PageTemplate, userId: string, keys?: readonly string[]): Promise<PublishPageResult> {
+  const page = await db.prepare("SELECT id FROM pages WHERE template = ?1").bind(template).first<Row>();
+  if (!page) return { ok: false, published: [], errors: { page: "missing" } };
+  const drafts = await getDrafts(db, "page", s(page.id));
+  const published: string[] = [];
+  const errors: Record<string, SectionErrors | "conflict" | "missing"> = {};
+  for (const slot of TEMPLATES[template].sections) {
+    const d = drafts.get(slot.key);
+    if (!d || (keys && !keys.includes(slot.key))) continue;
+    const live = await db.prepare("SELECT s.updated_at FROM page_sections s WHERE s.page_id = ?1 AND s.section_key = ?2").bind(s(page.id), slot.key).first<Row>();
+    if (!live) { errors[slot.key] = "missing"; continue; }
+    const res = await saveSectionContent(db, { template, key: slot.key, content: d.content, expectedUpdatedAt: s(live.updated_at), userId });
+    if (res.ok) { await deleteDrafts(db, "page", s(page.id), slot.key); published.push(slot.key); }
+    else errors[slot.key] = res.kind === "invalid" ? res.errors : res.kind;
+  }
+  return Object.keys(errors).length ? { ok: false, published, errors } : { ok: true, published };
+}
+
+/** Throws a page's draft changes away (all sections, or the given ones). Returns the sections that had a draft. */
+export async function discardPageDrafts(db: Db, template: PageTemplate, keys?: readonly string[]): Promise<string[]> {
+  const page = await db.prepare("SELECT id FROM pages WHERE template = ?1").bind(template).first<Row>();
+  if (!page) return [];
+  const drafts = await getDrafts(db, "page", s(page.id));
+  const gone = [...drafts.keys()].filter((k) => !keys || keys.includes(k));
+  for (const k of gone) await deleteDrafts(db, "page", s(page.id), k);
+  return gone;
+}
+
+/** Publishes or unpublishes a page that has its own address. The public address answers "not found" while it is a draft; an admin can still preview it. */
+export async function setPageStatus(db: Db, template: PageTemplate, status: "published" | "draft", userId: string): Promise<{ ok: true; changed: boolean } | { ok: false; kind: "locked" | "missing" }> {
+  if (!hasDrafts(template)) return { ok: false, kind: "locked" };
+  if (template === "home" && status !== "published") return { ok: false, kind: "locked" }; // the site cannot be without its front page
+  const row = await db.prepare("SELECT id, status FROM pages WHERE template = ?1").bind(template).first<Row>();
+  if (!row) return { ok: false, kind: "missing" };
+  if (s(row.status) === status) return { ok: true, changed: false };
+  await db.prepare("UPDATE pages SET status = ?2, updated_at = ?3, updated_by = ?4 WHERE id = ?1").bind(s(row.id), status, new Date().toISOString(), userId).run();
+  return { ok: true, changed: true };
+}
+
 /* ---- switching a section on or off ----------------------------------------------------------------------------------- */
 
 export type EnableResult = { ok: true } | { ok: false; kind: "missing" | "locked" };
@@ -237,46 +337,48 @@ export async function savePageSeo(db: Db, template: PageTemplate, input: unknown
 /** How a page's search settings stand: its own values, the defaults from Settings, or kept out of search engines. Null for copy that is not a page. */
 export type SeoStatus = "custom" | "default" | "noindex" | "nofollow";
 
-export type PageSummary = { template: PageTemplate; id: string; label: string; route: string | null; slug: string; status: PageStatus; sections: number; hidden: number; updatedAt: string | null; seeded: boolean; seo: SeoStatus | null };
+export type PageSummary = { template: PageTemplate; id: string; label: string; route: string | null; slug: string; status: PageStatus; sections: number; hidden: number; /** sections with an unpublished draft */ drafts: number; updatedAt: string | null; seeded: boolean; seo: SeoStatus | null };
 
 /** Every page of the CMS with how many sections it has, how many are hidden and when something on it last changed. A page that has not been seeded is listed too. */
 export async function listPages(db: Db): Promise<PageSummary[]> {
   const pages = (await db.prepare("SELECT id, slug, template, status, seo_title, seo_description, og_image_id, canonical_url, noindex, nofollow, updated_at FROM pages").all<Row>()).results ?? [];
   const secs = (await db.prepare("SELECT page_id, is_enabled, updated_at FROM page_sections").all<Row>()).results ?? [];
+  const draftCounts = (await db.prepare("SELECT owner_id, COUNT(*) AS n FROM content_drafts WHERE scope = 'page' GROUP BY owner_id").all<Row>()).results ?? [];
   return (Object.keys(TEMPLATES) as PageTemplate[]).map((template) => {
     const p = pages.find((x) => x.template === template);
     const mine = p ? secs.filter((x) => x.page_id === p.id) : [];
     const newest = [...mine.map((x) => s(x.updated_at)), ...(p ? [s(p.updated_at)] : [])].sort().pop() ?? null;
     const own = !!p && !!(p.seo_title || p.seo_description || p.og_image_id || p.canonical_url);
     const seo: SeoStatus | null = !TEMPLATES[template].hasSeo ? null : p?.noindex === 1 ? "noindex" : p?.nofollow === 1 ? "nofollow" : own ? "custom" : "default";
-    return { template, id: p ? s(p.id) : `page_${template}`, label: TEMPLATES[template].label, route: TEMPLATES[template].route, slug: p ? s(p.slug) : template.replace(/_/g, "-"), status: p ? (s(p.status) as PageStatus) : "published", sections: TEMPLATES[template].sections.length, hidden: mine.filter((x) => x.is_enabled !== 1).length, updatedAt: newest, seeded: !!p, seo };
+    return { template, id: p ? s(p.id) : `page_${template}`, label: TEMPLATES[template].label, route: TEMPLATES[template].route, slug: p ? s(p.slug) : template.replace(/_/g, "-"), status: p ? (s(p.status) as PageStatus) : "published", sections: TEMPLATES[template].sections.length, hidden: mine.filter((x) => x.is_enabled !== 1).length, drafts: p ? Number(draftCounts.find((d) => d.owner_id === p.id)?.n ?? 0) : 0, updatedAt: newest, seeded: !!p, seo };
   });
 }
 
-export type SectionSummary = { key: string; name: string; type: SectionType; typeLabel: string; canDisable: boolean; confirm?: string; lock?: string; anchor?: string; enabled: boolean; /** null: no row yet */ updatedAt: string | null; /** the saved content no longer passes its schema (the default is drawn) */ damaged: boolean };
+export type SectionSummary = { key: string; name: string; type: SectionType; typeLabel: string; canDisable: boolean; confirm?: string; lock?: string; anchor?: string; /** an unpublished draft exists */ draft: boolean; enabled: boolean; /** null: no row yet */ updatedAt: string | null; /** the saved content no longer passes its schema (the default is drawn) */ damaged: boolean };
 
 /** The sections of a page in order, with what the page overview needs. */
 export async function listSections(db: Db, template: PageTemplate): Promise<{ page: PageRecord | null; sections: SectionSummary[] }> {
   const pageRow = await db.prepare("SELECT * FROM pages WHERE template = ?1").bind(template).first<Row>();
   const rows = pageRow ? ((await db.prepare("SELECT section_key, section_type, is_enabled, content, updated_at FROM page_sections WHERE page_id = ?1").bind(pageRow.id).all<Row>()).results ?? []) : [];
+  const drafts = pageRow && hasDrafts(template) ? await getDrafts(db, "page", s(pageRow.id)) : new Map();
   const sections = TEMPLATES[template].sections.map((slot): SectionSummary => {
     const row = rows.find((r) => r.section_key === slot.key);
     let damaged = false;
     if (row) {
       try { damaged = s(row.section_type) !== slot.type || !SECTION_TYPES[slot.type].schema.safeParse(JSON.parse(s(row.content))).success; } catch { damaged = true; }
     }
-    return { key: slot.key, name: slot.name, type: slot.type, typeLabel: SECTION_TYPES[slot.type].label, canDisable: slot.canDisable, ...(slot.confirm ? { confirm: slot.confirm } : {}), ...(slot.lock ? { lock: slot.lock } : {}), ...(slot.anchor ? { anchor: slot.anchor } : {}), enabled: slot.canDisable ? !row || row.is_enabled === 1 : true, updatedAt: row ? s(row.updated_at) : null, damaged };
+    return { key: slot.key, name: slot.name, type: slot.type, typeLabel: SECTION_TYPES[slot.type].label, canDisable: slot.canDisable, ...(slot.confirm ? { confirm: slot.confirm } : {}), ...(slot.lock ? { lock: slot.lock } : {}), ...(slot.anchor ? { anchor: slot.anchor } : {}), draft: drafts.has(slot.key), enabled: slot.canDisable ? !row || row.is_enabled === 1 : true, updatedAt: row ? s(row.updated_at) : null, damaged };
   });
   return { page: pageRow ? toPage(pageRow) : null, sections };
 }
 
-export type SectionForEdit = { type: SectionType; /** What the editor starts from: the saved content, or the default if the saved content is damaged. */ content: unknown; updatedAt: string; damaged: boolean; enabled: boolean };
+export type SectionForEdit = { type: SectionType; /** What the editor starts from: the draft if there is one, else the published content (or the default if that is damaged). */ content: unknown; /** The version token of what the editor shows: the draft's, else the published section's. */ updatedAt: string; damaged: boolean; enabled: boolean; /** The editor shows an unpublished draft. */ draft: boolean };
 
 /** One section for its editor, or null if the section does not exist or has no row (the page has not been seeded). */
 export async function readSectionForEdit(db: Db, template: PageTemplate, key: string): Promise<SectionForEdit | null> {
   const slot = slotOf(template, key);
   if (!slot) return null;
-  const row = await db.prepare("SELECT s.section_type, s.content, s.updated_at, s.is_enabled FROM page_sections s JOIN pages p ON p.id = s.page_id WHERE p.template = ?1 AND s.section_key = ?2").bind(template, key).first<Row>();
+  const row = await db.prepare("SELECT s.page_id, s.section_type, s.content, s.updated_at, s.is_enabled FROM page_sections s JOIN pages p ON p.id = s.page_id WHERE p.template = ?1 AND s.section_key = ?2").bind(template, key).first<Row>();
   if (!row) return null;
   let content: unknown;
   let damaged = s(row.section_type) !== slot.type;
@@ -286,7 +388,10 @@ export async function readSectionForEdit(db: Db, template: PageTemplate, key: st
       if (parsed.success) content = parsed.data; else damaged = true;
     } catch { damaged = true; }
   }
-  return { type: slot.type, content: damaged ? defaultContent(template, key) : content, updatedAt: s(row.updated_at), damaged, enabled: slot.canDisable ? row.is_enabled === 1 : true };
+  const draft = hasDrafts(template) ? (await getDrafts(db, "page", s(row.page_id))).get(key) : undefined;
+  const draftOk = draft ? SECTION_TYPES[slot.type].schema.safeParse(draft.content) : null;
+  if (draft && draftOk?.success) return { type: slot.type, content: draftOk.data, updatedAt: draft.updatedAt, damaged: false, enabled: slot.canDisable ? row.is_enabled === 1 : true, draft: true };
+  return { type: slot.type, content: damaged ? defaultContent(template, key) : content, updatedAt: s(row.updated_at), damaged, enabled: slot.canDisable ? row.is_enabled === 1 : true, draft: false };
 }
 
 export type Revision = {

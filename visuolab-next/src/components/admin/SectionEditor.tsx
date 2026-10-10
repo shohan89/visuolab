@@ -290,6 +290,8 @@ type Props = {
   action: (prev: CmsFormState, f: FormData) => Promise<CmsFormState>;
   /** Puts an earlier version back (it is told the same `target`, the `revisionId` and the version token). */
   restoreAction: (prev: CmsFormState, f: FormData) => Promise<CmsFormState>;
+  /** Present for content that has draft and published versions: whether a draft exists, and the actions that publish or discard it. */
+  drafts?: { has: boolean; publish: (prev: CmsFormState, f: FormData) => Promise<CmsFormState>; discard: (prev: CmsFormState, f: FormData) => Promise<CmsFormState> };
   target: Record<string, string>;
   /** The lists the choice fields draw from. */
   options?: Record<string, PickOption[]>;
@@ -307,11 +309,12 @@ type Props = {
  * Edits the content of one section. The form is described by `fields` (src/lib/cms/fields.ts); nothing is written until Save, Cancel puts back what is
  * stored, and the server checks everything again against the strict schema of the section (the same rules, whatever the browser sent).
  */
-export default function SectionEditor({ action, restoreAction, target, options = {}, fields, initial, updatedAt, damaged, media, cases, revisions }: Props) {
+export default function SectionEditor({ action, restoreAction, drafts, target, options = {}, fields, initial, updatedAt, damaged, media, cases, revisions }: Props) {
   const [value, setValue] = useState<Obj>(isObj(initial) ? initial : {});
   const [saved, setSaved] = useState<{ obj: Obj; stamp: string }>({ obj: isObj(initial) ? initial : {}, stamp: updatedAt });
   const [result, setResult] = useState<CmsFormState>(undefined);
   const [pending, start] = useTransition();
+  const [hasDraft, setHasDraft] = useState(!!drafts?.has);
   const dirty = JSON.stringify(value) !== JSON.stringify(saved.obj);
   const errors = result && !result.ok && result.kind === "invalid" ? result.errors : {};
   const n = Object.keys(errors).length;
@@ -324,7 +327,17 @@ export default function SectionEditor({ action, restoreAction, target, options =
     start(async () => {
       const r = await action(undefined, fd);
       setResult(r);
-      if (r?.ok) setSaved({ obj: value, stamp: r.updatedAt });
+      if (r?.ok) { setSaved({ obj: value, stamp: r.updatedAt }); if (drafts) setHasDraft(!!r.draft); }
+    });
+  };
+  const draftAction = (which: "publish" | "discard") => {
+    if (!drafts) return;
+    const fd = new FormData();
+    for (const [k, v] of Object.entries(target)) fd.set(k, v);
+    start(async () => {
+      const r = await drafts[which](undefined, fd);
+      setResult(r);
+      if (r?.ok) window.location.reload(); // the screen then shows the published content and the new list of versions
     });
   };
   const restore = (revisionId: string) => {
@@ -353,7 +366,17 @@ export default function SectionEditor({ action, restoreAction, target, options =
           <ul>{Object.entries(errors).map(([k, m]) => <li key={k}>{k === "form" ? m : `${readable(k)}: ${m}`}</li>)}</ul>
         </div>
       )}
-      {result?.ok && !dirty && <p className="hint cms-saved" role="status">Saved. It is live on the website now.</p>}
+      {drafts && hasDraft && (
+        <div className="draft-banner" role="status">
+          <b>Draft.</b> This section has unpublished changes. Visitors see the published version until you publish.
+          <span className="rev-actions">
+            <button type="button" className="primary" disabled={pending || dirty} onClick={() => draftAction("publish")}>Publish this section</button>
+            <button type="button" disabled={pending || dirty} onClick={() => draftAction("discard")}>Discard draft</button>
+          </span>
+          {dirty && <small> Save or cancel your edits first.</small>}
+        </div>
+      )}
+      {result?.ok && !dirty && <p className="hint cms-saved" role="status">{drafts ? (result.draft ? "Draft saved. Visitors still see the published version." : "Saved. It is the same as the published version, so there is no draft.") : "Saved. It is live on the website now."}</p>}
 
       <section className="form-card">
         {fields.map((f) => <Field key={f.key} def={f} value={value[f.key]} path={f.key} set={(v) => edit(f, v)} ctx={ctx} />)}
@@ -384,9 +407,9 @@ export default function SectionEditor({ action, restoreAction, target, options =
       </section>
 
       <div className="savebar">
-        <button type="submit" className="primary" disabled={pending || !dirty}>{pending ? "Saving…" : "Save section"}</button>
+        <button type="submit" className="primary" disabled={pending || !dirty}>{pending ? "Saving…" : drafts ? "Save draft" : "Save section"}</button>
         <button type="button" onClick={() => { setValue(saved.obj); setResult(undefined); }} disabled={pending || !dirty}>Cancel changes</button>
-        <span className="hint">{dirty ? "Unsaved changes." : "Changes go live on the website as soon as you save."}</span>
+        <span className="hint">{dirty ? "Unsaved changes." : drafts ? "Saving keeps a draft; nothing goes live until you publish." : "Changes go live on the website as soon as you save."}</span>
       </div>
     </form>
   );

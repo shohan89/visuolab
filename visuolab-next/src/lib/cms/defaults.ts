@@ -758,6 +758,7 @@ export const PAGE_DEFAULTS: { [P in PageTemplate]: PageContent<P> } = {
       "score": "5.0",
       "text": "60+ reviews on Clutch"
     },
+    header: { servicesLabel: "Services", departmentsLabel: "Core departments" },
     footer: {
       "newsletterText": "Subscribe to our newsletter to stay in touch with the latest.",
       "newsletterPlaceholder": "Your email address",

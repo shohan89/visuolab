@@ -25,7 +25,7 @@ Four totals: services, published case studies, published blog posts, unread (`st
 
 ## Behaviour
 
-- **Sidebar:** current page marked (`aria-current`), new-submissions badge, content and site sections listed as disabled "Soon" until their editors exist (they are not links). Becomes a slide-in menu under 760 px (burger button, scrim, Escape and navigation close it).
+- **Sidebar:** current page marked (`aria-current`), new-submissions badge, every content and site section is a real link to its editor (Services, Case studies, Blog, Media, Pages, Recent changes, Navigation, Integrations, Settings); nothing is shown as unavailable. Becomes a slide-in menu under 760 px (burger button, scrim, Escape and navigation close it).
 - **Account menu:** name, e-mail, role, link to the public site, sign out (a server action with the CSRF origin check).
 - **Toasts:** `useToast()` from `Toaster.tsx` for client code. Server actions redirect with a notice **code** (`?n=status`, `?n=deleted`); the provider shows the matching text, removes the parameter from the address and refreshes the layout counts. Unknown codes show nothing, so an address cannot display arbitrary text.
 - **Loading / error / empty:** `loading.tsx` skeleton, `error.tsx` with "Try again" (only an error reference is shown; details stay in the server log), empty states on the overview lists and on filtered submissions.

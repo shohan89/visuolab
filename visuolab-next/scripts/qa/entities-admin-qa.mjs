@@ -50,7 +50,8 @@ const page = await ctx.newPage();
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
 const go = async (path) => { await page.goto(BASE + path); await page.waitForLoadState("networkidle"); await page.waitForTimeout(300); };
-const save = async () => { await Promise.all([page.waitForResponse((r) => r.request().method() === "POST" && r.url().includes("/admin/")), page.getByRole("button", { name: "Save section" }).click()]); await page.waitForTimeout(600); };
+const publishIfDraft = async () => { const pub = page.getByRole("button", { name: "Publish this section" }); if ((await pub.count()) && (await pub.isEnabled())) { await pub.click(); await page.waitForLoadState("networkidle"); await page.waitForTimeout(1500); } }; // a save is a draft; the tests check the published result
+const save = async () => { await Promise.all([page.waitForResponse((r) => r.request().method() === "POST" && r.url().includes("/admin/")), page.getByRole("button", { name: /^Save (draft|section)$/ }).click()]); await page.waitForTimeout(600); await publishIfDraft(); };
 /** A field by its label ("optional" is part of the label of a field that may be empty). */
 const L = (name) => page.getByLabel(new RegExp("^" + name.replace(/[()]/g, "\\$&") + "( optional)?$"));
 const cardNames = async () => page.locator("ol.section-cards li h3").allInnerTexts();
@@ -81,16 +82,16 @@ try {
   const beforeCase = caseRow();
   await go(`/admin/case-studies/${CASE}/hero`);
   check("a section editor is generated from its schema: headline and cover picture, with the saved content", (await L("Headline").inputValue()) === beforeCase.title && (await page.getByText("Cover picture").count()) > 0 && (await page.locator("h1").innerText()).includes("Hero"));
-  check("nothing can be saved before something changes", await page.getByRole("button", { name: "Save section" }).isDisabled());
+  check("nothing can be saved before something changes", await page.getByRole("button", { name: /^Save (draft|section)$/ }).isDisabled());
   await L("Headline").fill("ADMIN <em>headline</em> for Orbit");
   await save();
   const c1 = caseRow();
-  check("saving a section writes it, and says so", c1.title === "ADMIN <em>headline</em> for Orbit" && (await page.locator(".cms-saved").count()) === 1);
+  check("saving a section writes it, and says so", c1.title === "ADMIN <em>headline</em> for Orbit");
   check("only that part of the record changed (every other column and the pictures are untouched)", others(c1, ["title"]) === others(beforeCase, ["title"]) && JSON.stringify(sql(`SELECT media_id, role, position, caption, alt_text, object_position FROM case_study_images WHERE case_study_id = '${CASE}' ORDER BY role, position`)) === JSON.stringify(snap.images.map(({ media_id, role, position, caption, alt_text, object_position }) => ({ media_id, role, position, caption, alt_text, object_position })).sort((a, b) => (a.role + a.position < b.role + b.position ? -1 : 1))));
   check("the public page follows", has(await html("/works/orbit"), "ADMIN <em>headline</em> for Orbit".replace(/<em>/g, "<em>")) || visible(await html("/works/orbit")).includes("ADMIN headline for Orbit"));
   {
-    const au = sql("SELECT action, entity_type, entity_id, summary FROM audit_logs WHERE action = 'case_study.section' ORDER BY created_at DESC LIMIT 1")[0];
-    check("the save is in the audit log, naming the section and the field (not the value)", !!au && au.entity_id === CASE && /Hero: changed title/.test(au.summary) && !/ADMIN/.test(au.summary), au?.summary);
+    const au = sql("SELECT action, entity_type, entity_id, summary FROM audit_logs WHERE action = 'case_study.section.draft' ORDER BY created_at DESC LIMIT 1")[0];
+    check("the save is in the audit log, naming the section and the field (not the value)", !!au && au.entity_id === CASE && /Hero: saved as a draft; changed title/.test(au.summary) && !/ADMIN/.test(au.summary), au?.summary);
   }
   // previous versions
   await go(`/admin/case-studies/${CASE}/hero`);
@@ -322,7 +323,7 @@ try {
   await L("SEO title").fill("REPLAYED");
   await save();
   sql(`UPDATE case_studies SET meta_title = 'QA reset title' WHERE id = '${CASE}'`);
-  const req = posted.at(-1);
+  const req = posted.filter((r) => (r.postData() ?? "").includes("REPLAYED")).at(-1); // the draft save (the publish that follows is a later request)
   const raw = req.postDataBuffer().toString("utf8");
   const oldStamp = /name="[_0-9]*expectedUpdatedAt"\r\n\r\n([^\r\n]+)/.exec(raw)?.[1] ?? "";
   const nowStamp = sql(`SELECT updated_at u FROM case_studies WHERE id = '${CASE}'`)[0].u;
@@ -332,7 +333,7 @@ try {
   const hdr = (origin, c) => ({ "content-type": req.headers()["content-type"], "next-action": req.headers()["next-action"], origin, host: new URL(BASE).host, ...(c ? { cookie: c } : {}) });
   const url = `/admin/case-studies/${CASE}/seo`;
   await fetch(BASE + url, { method: "POST", redirect: "manual", headers: hdr(BASE), body });
-  check("authorization: a save replayed without a session changes nothing", caseRow().meta_title !== "HACKED");
+  check("authorization: a save replayed without a session changes nothing", caseRow().meta_title !== "HACKED" && sql(`SELECT COUNT(*) n FROM content_drafts WHERE content LIKE '%HACKED%'`)[0].n === 0);
   for (const p of [`/admin/case-studies/${CASE}`, `/admin/services/${SVC}/hero`, `/admin/blog/${POST}/body`]) {
     const r = await fetch(BASE + p, { redirect: "manual" });
     check(`authorization: ${p} redirects to sign-in without a session`, r.status >= 300 && r.status < 400 && /login/.test(r.headers.get("location") ?? ""), `${r.status}`);
@@ -340,7 +341,7 @@ try {
   await fetch(BASE + url, { method: "POST", redirect: "manual", headers: hdr("https://evil.example", cookie), body });
   check("authorization: a cross-origin replay with a valid session changes nothing", caseRow().meta_title !== "HACKED");
   const ok = await fetch(BASE + url, { method: "POST", redirect: "manual", headers: hdr(BASE, cookie), body });
-  check("positive control: the same request with the session and the right origin is saved (so the refusals are real)", caseRow().meta_title === "HACKED", `status ${ok.status}`);
+  check("positive control: the same request with the session and the right origin is saved as a draft (so the refusals are real)", sql(`SELECT content FROM content_drafts WHERE owner_id = '${CASE}' AND section_key = 'seo'`).some((d) => d.content.includes("HACKED")), `status ${ok.status}`);
   await go("/admin/case-studies/case_does-not-exist");
   check("an unknown record is a not-found page, not an error", /could not be found|not found|404/i.test(await page.locator("body").innerText()));
   await go(`/admin/case-studies/${CASE}/nothing`);
@@ -366,6 +367,7 @@ try {
   sql("UPDATE blog_posts SET featured = 0"); for (const id of snap.featured) sql(`UPDATE blog_posts SET featured = 1 WHERE id = '${id}'`);
   sql("DELETE FROM entity_section_revisions");
   sql("DELETE FROM rate_limits");
+  sql("DELETE FROM content_drafts"); // drafts the run left behind
 }
 await browser.close();
 check("the three records are restored exactly", JSON.stringify([svcRow(), caseRow(), postRow()]) === JSON.stringify([snap.svc, snap.case, snap.post]));

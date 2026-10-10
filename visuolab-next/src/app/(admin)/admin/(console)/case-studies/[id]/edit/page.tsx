@@ -4,6 +4,7 @@ import { publishCaseStudy } from "@/actions/case-studies";
 import CaseStudyForm from "@/components/admin/CaseStudyForm";
 import SubmitButton from "@/components/admin/SubmitButton";
 import { requireAdmin } from "@/lib/server/auth";
+import { workingRecord } from "@/lib/server/entity-sections";
 import { getCaseRecord, otherCases, serviceOptions } from "@/lib/server/case-studies-admin";
 import { getEnv } from "@/lib/server/db";
 import { mediaOptions } from "@/lib/server/services-admin";
@@ -18,7 +19,8 @@ export default async function EditCaseStudyPage({ params }: { params: Promise<{ 
   const rec = await getCaseRecord(id);
   if (!rec) notFound();
   const [media, others, services] = await Promise.all([mediaOptions(), otherCases(id), serviceOptions()]);
-  const { input } = rec;
+  const working = await workingRecord("case_study", id); // the published record with its draft changes applied: what the form edits
+  const input = (working?.input ?? rec.input) as typeof rec.input;
   return (
     <>
       <div className="page-head">

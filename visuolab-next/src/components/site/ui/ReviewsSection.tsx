@@ -40,7 +40,7 @@ export default function ReviewsSection({ className, id, ariaLabelledBy, label, t
           {reviews.map((r) => (
             <article className="review-card" key={r.name}>
               <div className="top">
-                <Img className="avatar" loading="lazy" src={r.avatar} alt="" />
+                <Img className="avatar" loading="lazy" src={r.avatar} alt={r.avatarAlt ?? ""} />
                 <span className="logo"><i style={r.dot ? { background: r.dot } : undefined}></i>{r.company}</span>
               </div>
               <span className="mark" aria-hidden="true">“</span>

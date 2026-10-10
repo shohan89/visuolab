@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import PreviewBar from "@/components/site/PreviewBar";
+import { enterPreview, requirePublished } from "@/lib/server/preview";
 import JsonLd from "@/components/site/JsonLd";
 import { fixedPageSeo } from "@/lib/server/seo";
 import { getCaseCards, getLogoSeeds, getMediaIndex, getPage, getRating, getReviewSeeds, mediaSrc } from "@/lib/server/cms-pages";
@@ -18,17 +20,20 @@ export async function generateMetadata(): Promise<Metadata> {
  * Section type -> component:  home_hero -> HomeHero · logo_marquee, showreel, why_stats -> HomeIntroRun · services_columns -> HomeServices ·
  * case_showcase, industries_grid, process_steps -> HomeWorkRun · reviews_carousel -> HomeReviews.
  */
-export default async function HomePage() {
+export default async function HomePage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const preview = await enterPreview(await searchParams);
   const seo = await fixedPageSeo("home");
-  const [{ content, enabled }, media, reviews, logos, rating] = await Promise.all([getPage("home"), getMediaIndex(), getReviewSeeds(), getLogoSeeds(), getRating()]);
+  const [{ content, enabled, page }, media, reviews, logos, rating] = await Promise.all([getPage("home"), getMediaIndex(), getReviewSeeds(), getLogoSeeds(), getRating()]);
+  await requirePublished("home", page?.status);
   const cards = enabled.work ? await getCaseCards(content.work.caseIds) : [];
   return (
     <>
       <JsonLd nodes={seo.jsonLd} />
+      {preview && <PreviewBar what="Home with its draft changes" back="/admin/pages/home" />}
       {enabled.hero && <HomeHero content={content.hero} />}
       <HomeIntroRun
         logos={enabled.logos ? { content: content.logos, items: logos } : null}
-        showreel={enabled.showreel ? { videoSrc: mediaSrc(content.showreel.video, media), posterSrc: mediaSrc(content.showreel.poster, media), tag: content.showreel.tag, time: content.showreel.time } : null}
+        showreel={enabled.showreel ? { videoSrc: mediaSrc(content.showreel.video, media), posterSrc: mediaSrc(content.showreel.poster, media), videoAlt: content.showreel.video.alt, posterAlt: content.showreel.poster.alt, tag: content.showreel.tag, time: content.showreel.time } : null}
         why={enabled.why ? content.why : null}
       />
       {enabled.services && <HomeServices content={content.services} avatarSrc={mediaSrc(content.services.bookBar.avatar, media)} />}

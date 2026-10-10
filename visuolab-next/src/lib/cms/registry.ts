@@ -60,6 +60,7 @@ export const SECTION_TYPES: { [T in SectionType]: SectionTypeDef<T> } = {
   logos_collection: def("Trusted-by logos", S.logosCollectionSchema),
   site_rating: def("Review rating line", S.siteRatingSchema),
   footer_extras: def("Footer extras", S.footerExtrasSchema),
+  header_labels: def("Header menu labels", S.headerLabelsSchema),
   case_study_chrome: def("Case study page labels", S.caseStudyChromeSchema),
   article_chrome: def("Article page labels", S.articleChromeSchema),
 };
@@ -153,6 +154,7 @@ export const TEMPLATES: Record<PageTemplate, TemplateDef> = {
       slot("reviews", "reviews_collection", "Reviews", false, undefined, { lock: POOL }),
       slot("logos", "logos_collection", "Trusted-by names", false, undefined, { lock: POOL }),
       slot("rating", "site_rating", "Rating line", false, undefined, { lock: POOL }),
+      slot("header", "header_labels", "Header menu labels", false, undefined, { lock: LABELS }),
       slot("footer", "footer_extras", "Footer extras", false, undefined, { lock: "The footer carries the legal links and the copyright line on every page, so it always stays." }),
     ],
   },

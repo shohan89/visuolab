@@ -5,7 +5,7 @@
 import type {
   AboutHeroSection, ArticleChromeSection, BlogFeaturedSection, BlogGridSection, BlogHeroSection, CaseMosaicSection, CaseShowcaseSection,
   CaseStudyChromeSection, ContactFormSection, ContactIntroSection, CtaBandSection, FaqAccordionSection, FooterExtrasSection, HomeHeroSection,
-  IndustriesGridSection, LogoMarqueeSection, LogosCollectionSection, ManifestoSection, MissionVisionSection, OfficeClocksSection, OpenRolesSection,
+  HeaderLabelsSection, IndustriesGridSection, LogoMarqueeSection, LogosCollectionSection, ManifestoSection, MissionVisionSection, OfficeClocksSection, OpenRolesSection,
   PrinciplesListSection, ProcessStepsSection, ReviewsCarouselSection, ReviewsCollectionSection, ServicesColumnsSection, ShowreelSection, SiteRatingSection,
   TimelineSection, WhyStatsSection, WorksGridSection, WorksHeroSection,
 } from "./sections/index.ts";
@@ -44,6 +44,7 @@ export type SectionContentMap = {
   logos_collection: LogosCollectionSection;
   site_rating: SiteRatingSection;
   footer_extras: FooterExtrasSection;
+  header_labels: HeaderLabelsSection;
   case_study_chrome: CaseStudyChromeSection;
   article_chrome: ArticleChromeSection;
 };
@@ -60,7 +61,7 @@ export type TemplateSections = {
   service_detail: { logos: "logo_marquee"; reviews: "reviews_carousel" };
   case_study_detail: { chrome: "case_study_chrome" };
   article_detail: { chrome: "article_chrome" };
-  shared: { cta: "cta_band"; reviews: "reviews_collection"; logos: "logos_collection"; rating: "site_rating"; footer: "footer_extras" };
+  shared: { cta: "cta_band"; reviews: "reviews_collection"; logos: "logos_collection"; rating: "site_rating"; footer: "footer_extras"; header: "header_labels" };
 };
 
 export type PageTemplate = keyof TemplateSections;

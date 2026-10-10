@@ -3,9 +3,10 @@
 import { redirect } from "next/navigation";
 import { audit } from "@/lib/server/audit";
 import { requireAdmin } from "@/lib/server/auth";
+import { publishEntityDrafts, saveRecordAsDrafts, workingRecord } from "@/lib/server/entity-sections";
 import { ipHash, requestHeaders, strictSameOrigin } from "@/lib/server/request";
 import {
-  checkReferences, createService, deleteService, getServiceRecord, moveService, serviceReferences, setServiceStatus, slugInUse, updateService,
+  checkReferences, createService, deleteService, getServiceRecord, moveService, serviceReferences, setServiceStatus, slugInUse,
 } from "@/lib/server/services-admin";
 import { slugify } from "@/lib/slug";
 import { STATUSES, serviceSchema, toErrors, type ServiceErrors, type ServiceInput } from "@/lib/validation/service";
@@ -83,9 +84,13 @@ export async function saveService(_prev: ServiceFormState, formData: FormData): 
   const input = parsed.data as ServiceInput;
   const ip = await ipHash(h);
   if (existing) {
-    const { oldSlug } = await updateService(existing.id, input);
-    await audit({ action: "service.update", userId: admin.id, userEmail: admin.email, entityType: "service", entityId: existing.id, summary: oldSlug ? `Updated "${input.title}"; slug ${oldSlug} to ${input.slug}` : `Updated "${input.title}"`, ipHash: ip });
-    redirect(`${LIST}/${existing.id}/edit?n=saved`);
+    // the full form saves like the section editors: the parts of the page become drafts, the basics (slug, featured flag, ...) are written at once
+    const r = await saveRecordAsDrafts({ kind: "service", id: existing.id, input: input as unknown as Record<string, unknown>, userId: admin.id });
+    if (!r.ok) return fail(r.errors, raw);
+    const oldSlug = r.oldSlug;
+    const drafts = r.drafted.length ? `; draft changes in ${r.drafted.join(", ")}` : "";
+    await audit({ action: r.basics.length ? "service.update" : "service.draft", userId: admin.id, userEmail: admin.email, entityType: "service", entityId: existing.id, summary: (oldSlug ? `Updated "${input.title}"; slug ${oldSlug} to ${input.slug}` : `Updated "${input.title}"`) + drafts, ipHash: ip });
+    redirect(`${LIST}/${existing.id}/edit?n=${r.drafted.length || r.cleared.length ? "draft_saved" : "saved"}`);
   }
   const newId = await createService(input);
   await audit({ action: "service.create", userId: admin.id, userEmail: admin.email, entityType: "service", entityId: newId, summary: `Created "${input.title}" (${input.status})`, ipHash: ip });
@@ -105,12 +110,16 @@ export async function publishService(formData: FormData): Promise<void> {
   const id = idOf(formData);
   const rec = id ? await getServiceRecord(id) : null;
   if (!id || !rec) redirect(`${LIST}?n=failed`);
-  const check = serviceSchema.safeParse({ ...rec.input, status: "published" });
+  // publishing publishes the draft changes with it, so the whole page as the editor sees it must pass the same checks as the form
+  const working = await workingRecord("service", id);
+  const check = serviceSchema.safeParse({ ...(working?.input ?? rec.input), status: "published" });
   const refs = check.success ? await checkReferences(check.data) : {};
   if (!check.success || Object.keys(refs).length) redirect(`${LIST}/${id}/edit?n=cannot_publish`);
+  const pub = await publishEntityDrafts({ kind: "service", id, userId: admin.id });
+  if (Object.keys(pub.errors).length) redirect(`${LIST}/${id}/edit?n=cannot_publish`);
   await setServiceStatus(id, "published");
-  await audit({ action: "service.publish", userId: admin.id, userEmail: admin.email, entityType: "service", entityId: id, summary: `Published "${rec.input.title}"`, ipHash: await ipHash(h) });
-  redirect(`${text(formData, "back") === "edit" ? `${LIST}/${id}/edit` : LIST}?n=published`);
+  await audit({ action: "service.publish", userId: admin.id, userEmail: admin.email, entityType: "service", entityId: id, summary: `Published "${rec.input.title}"${pub.published.length ? ` with the changes in ${pub.published.join(", ")}` : ""}`, ipHash: await ipHash(h) });
+  redirect(`${text(formData, "back") === "edit" ? `${LIST}/${id}/edit` : text(formData, "back") === "overview" ? `${LIST}/${id}` : LIST}?n=published`);
 }
 
 /**

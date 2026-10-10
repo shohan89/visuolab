@@ -1,5 +1,6 @@
 "use client";
 
+import { useSharedContent } from "@/components/site/SharedContentProvider";
 import Link from "@/components/site/ui/Link";
 import { useEffect, useRef, useState } from "react";
 import { iconFor } from "@/content/nav";
@@ -11,6 +12,7 @@ import MobileNav from "./MobileNav";
 
 /** Header: solid after 24px of scroll, dark text while it sits over a light section (.scrolled / .over-light). */
 export default function Nav() {
+  const { header } = useSharedContent();
   const { primary, cta, megaCards, promo, megaColumns } = useNavigation();
   const ref = useRef<HTMLElement>(null);
   const burger = useRef<HTMLButtonElement>(null);
@@ -42,11 +44,11 @@ export default function Nav() {
         <nav className="nav-links" aria-label="Primary">
           <div className="nav-item">
             <button type="button" data-menu aria-haspopup="true">
-              Services <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" /></svg>
+              {header.servicesLabel} <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" /></svg>
             </button>
             <div className="menu mega">
               <div className="mega-main">
-                <p className="mega-label">Core departments</p>
+                <p className="mega-label">{header.departmentsLabel}</p>
                 <div className="mega-cards">
                   {megaCards.map((c) => (
                     <Link className="mega-card" href={c.href} key={`${c.href}|${c.label}`} {...newTabProps(c)}>
